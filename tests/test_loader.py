@@ -20,6 +20,8 @@ def test_open_blend_file():
     assert BlenderFile.Arch.X64, head.arch
     assert BlenderFile.Endian.Little, head.endian
 
+    test_blend.close()
+
 def test_open_bad_blend_file():
     pytest.raises(BlenderFileImportException, BlenderFile, 'tests/test2.blend')
     pytest.raises(BlenderFileImportException, BlenderFile, 'tests/test3.blend')
