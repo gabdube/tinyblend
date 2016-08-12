@@ -10,15 +10,8 @@ from enum import Enum
 from collections import namedtuple
 from itertools import permutations
 
-# Blender structures format are defined here. When a BlendFile is loaded, the structs
-# are instanced and then cached in the class. 
-
-BLENDER_STRUCTURE_FORMATS = {
-    'Int': ('i', 'val'),
-    'Short': ('h', 'val'),
-    'StructField': ('hh', 'type', 'name'),
-    'FileBlockHeader': ('4siPii', 'code', 'size', 'addr', 'sdna', 'count')
-}
+# Static structures format are defined here (structures that do not change between blender versions). 
+# When a BlendFile is loaded, the structs are instanced and then cached in the class. 
 
 class NamedStruct(object):
     """
@@ -61,6 +54,11 @@ class BlenderFileImportException(BlenderFileException):
     def __init__(self, message):
         super().__init__(message)
 
+class BlenderObjectFactory(object):
+    
+    def __init__(self):
+        pass
+
 class BlenderFile(object):
     """
         Parse a blender file and extract the contained assets
@@ -69,18 +67,20 @@ class BlenderFile(object):
             * handle - Underlying file object
             * header - Information about the whole file. version (major,minor,rev), arch (32/64bits) and endianess (little/big)
             * blocks - List of blender data block in the blend file
+            * index  - List if all name, types and structures contained in the blend file
     
         author: Gabriel Dube
     """
 
-    Arch = Enum('Arch', ('X32', 'X64'), qualname='BlenderFile.Arch')
-    Endian = Enum('Endian', ('Little', 'Big'), qualname='BlenderFile.Endian')
+    Arch = Enum('Arch', (('X32', 'I'), ('X64', 'Q')), qualname='BlenderFile.Arch')
+    Endian = Enum('Endian', (('Little', '<'), ('Big', '>')), qualname='BlenderFile.Endian')
 
+    # Version structures
     VersionInfo = namedtuple('VersionInfo', ('major', 'minor', 'rev'))
     BlendFileInfo = namedtuple('BlendFileInfo', ('version', 'arch', 'endian'))
+
     BlendStructRef = namedtuple('BlendStructRef', ('name', 'fields'))
     BlendIndex = namedtuple('BlendIndex', ('names', 'types', 'structures'))
-    
 
     # Cache for generated blender structures
     StructCache = {} 
@@ -98,6 +98,8 @@ class BlenderFile(object):
 
             author: Gabriel Dube
         """
+        if len(header) != 12 or header[0:7] != b'BLENDER':
+            return None
        
         arch = header[7:8]
         endian = header[8:9]
@@ -121,39 +123,32 @@ class BlenderFile(object):
 
         return BlenderFile.BlendFileInfo(version=version, arch=arch, endian=endian)
 
-    def _create_structs(self):
+    def _fmt_strct(self, fmt):
         """
-            Define the blender data structures add them to the class struct cache
+            Author: Gabriel Dube
         """
         head = self.header
-        key = self._cache_key
-        if key in BlenderFile.StructCache.keys():
-            return 
-
-        endian = '<' if head.endian == BlenderFile.Endian.Little else '>'
-        ptr = 'Q' if head.arch == BlenderFile.Arch.X64 else 'I'
-
-        cache = {}
-        for name, fmt in BLENDER_STRUCTURE_FORMATS.items():
-            fmt, *field_names = fmt
-            fmt = endian + (fmt.replace('P', ptr))
-            cache[name] = NamedStruct(name, fmt, *field_names)
-
-        BlenderFile.StructCache[key] = cache
+        return head.endian.value + (fmt.replace('P', head.arch.value))
 
     def _parse_index(self, head, data_offset):
         """
             Parse the blender index and return the parsed data.
             The index has an unkown length, so it cannot be parsed in one shot
-        """
-        Int, Short, StructField, BlendStructRef = self.Int, self.Short, self.StructField, BlenderFile.BlendStructRef
-        data = self.handle.read(head.size)
 
+            Author: Gabriel Dube
+        """
         def align():
             nonlocal offset
             tmp = offset%4
             offset += 0 if tmp==0 else 4-tmp
 
+
+        Int = NamedStruct('Int', self._fmt_strct('i'), 'val')
+        Short = NamedStruct('Short', self._fmt_strct('h'), 'val')
+        StructField = NamedStruct('StructField', self._fmt_strct('hh'), 'type', 'name')
+        BlendStructRef = BlenderFile.BlendStructRef
+
+        data = self.handle.read(head.size)
         if data[0:8] != b'SDNANAME':
             raise BlenderFileImportException('Malformed index')
 
@@ -210,9 +205,11 @@ class BlenderFile(object):
         """
             Extract the file block headers from the file. 
             Return a list of extracted blocks and the index (aka SDNA) block
+
+            Author: Gabriel Dube
         """
         handle = self.handle
-        FileBlockHeader = self.FileBlockHeader
+        BlendBlockHeader = NamedStruct('BlendBlockHeader', self._fmt_strct('4siPii'), 'code', 'size', 'addr', 'sdna', 'count')
 
         # Get the blend file size
         end = handle.seek(0, 2)
@@ -222,8 +219,8 @@ class BlenderFile(object):
         end_found = False
         file_block_heads = []
         while end != handle.seek(0, 1) and not end_found:
-            buf = handle.read(FileBlockHeader.format.size)
-            file_block_head = FileBlockHeader.unpack(buf)
+            buf = handle.read(BlendBlockHeader.format.size)
+            file_block_head = BlendBlockHeader.unpack(buf)
             
             # DNA1 indicates the index block of the blend file
             # ENDB indicates the end of the blend file
@@ -242,33 +239,18 @@ class BlenderFile(object):
         if end_found == False:
             raise BlenderFileImportException('End of the blend file was not found')
         
-        return file_block_heads, blend_index
+        return tuple(file_block_heads), blend_index
 
     def __init__(self, blend_file_name):
         handle = open('./assets/'+blend_file_name, 'rb')
 
-        bytes_header = handle.read(12)
-        if len(bytes_header) != 12 or bytes_header[0:7] != b'BLENDER':
-            raise BlenderFileImportException('Bad file header')
-
-        header = BlenderFile.parse_header(bytes_header)
+        header = BlenderFile.parse_header(handle.read(12))
         if header is None:
             raise BlenderFileImportException('Bad file header')
 
         self.header = header
-        self._cache_key = (self.header.arch, self.header.endian)
         self.handle = handle
-        self._create_structs()
         self.blocks, self.index = self._parse_blocks()
 
     def close(self):
         self.handle.close()
-
-    def __getattr__(self, name):
-        cache = BlenderFile.StructCache.get(self._cache_key) or {}
-        attr = cache.get(name)
-        if attr is None:
-            raise AttributeError('Attribute \'{}\' not found'.format(name))
-
-        return attr
-        

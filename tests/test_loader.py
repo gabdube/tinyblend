@@ -22,6 +22,11 @@ def test_open_blend_file():
 
     test_blend.close()
 
+def test_should_read_scene():
+    test_blend = BlenderFile('tests/test1.blend')
+
+    test_blend.close()
+
 def test_open_bad_blend_file():
     pytest.raises(BlenderFileImportException, BlenderFile, 'tests/test2.blend')
     pytest.raises(BlenderFileImportException, BlenderFile, 'tests/test3.blend')
