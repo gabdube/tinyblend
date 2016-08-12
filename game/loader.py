@@ -9,9 +9,7 @@ from struct import Struct
 from enum import Enum
 from collections import namedtuple
 from itertools import permutations
-
-# Static structures format are defined here (structures that do not change between blender versions). 
-# When a BlendFile is loaded, the structs are instanced and then cached in the class. 
+from weakref import ref
 
 class NamedStruct(object):
     """
@@ -54,10 +52,65 @@ class BlenderFileImportException(BlenderFileException):
     def __init__(self, message):
         super().__init__(message)
 
+class BlenderFileReadException(BlenderFileException):
+    """
+        Exception raised when reading bad values from a blend file
+        author: Gabriel Dube
+    """
+    def __init__(self, message):
+        super().__init__(message)
+
 class BlenderObjectFactory(object):
-    
-    def __init__(self):
-        pass
+    """
+        Object that reads blender structures from datablocks
+        Used internally
+
+        Author: Gabriel Dube
+    """
+    def __init__(self, file, struct_index):
+        self.file = ref(file)
+
+        for index, struct_dna in enumerate(file.index.structures):
+            if struct_dna.index == struct_index:
+                self.struct_dna = struct_dna
+                self.sdna_index = index
+                break
+
+    def __len__(self):
+        file = self.file()
+        if file is None:
+            raise RuntimeError('Parent blend file was freed')
+
+        blocks = file.blocks
+        count = 0
+        for block, offset in blocks:
+            count += block.sdna == self.sdna_index
+
+        return count
+
+    def __repr__(self):
+        file = self.file()
+        if file is None:
+            raise RuntimeError('Parent blend file was freed')
+
+        dna = self.struct_dna
+        return "<BlenderObjectFactory of '{}'>".format(file.index.type_names[dna.index])
+
+    def __str__(self):
+        file = self.file()
+        if file is None:
+            raise RuntimeError('Parent blend file was freed')
+
+        dna = self.struct_dna
+        field_names = file.index.field_names
+        type_names = file.index.type_names
+        
+        repr = type_names[dna.index] + '\n'
+        for f in dna.fields:
+            repr += '  {} {}'.format(type_names[f.type], field_names[f.name])+'\n'
+
+        return repr
+
 
 class BlenderFile(object):
     """
@@ -80,8 +133,8 @@ class BlenderFile(object):
     BlendFileInfo = namedtuple('BlendFileInfo', ('version', 'arch', 'endian'))
 
     # Index structures
-    BlendStructRef = namedtuple('BlendStructRef', ('name', 'fields'))
-    BlendIndex = namedtuple('BlendIndex', ('names', 'types', 'structures'))
+    BlendStructDNA = namedtuple('BlendStructDNA', ('index', 'fields'))
+    BlendIndex = namedtuple('BlendIndex', ('field_names', 'type_names', 'type_sizes', 'structures'))
 
     @staticmethod
     def parse_header(header):
@@ -128,7 +181,7 @@ class BlenderFile(object):
         head = self.header
         return head.endian.value + (fmt.replace('P', head.arch.value))
 
-    def _parse_index(self, head, data_offset):
+    def _parse_index(self, head):
         """
             Parse the blender index and return the parsed data.
             The index has an unkown length, so it cannot be parsed in one shot
@@ -144,8 +197,9 @@ class BlenderFile(object):
         Int = NamedStruct('Int', self._fmt_strct('i'), 'val')
         Short = NamedStruct('Short', self._fmt_strct('h'), 'val')
         StructField = NamedStruct('StructField', self._fmt_strct('hh'), 'type', 'name')
-        BlendStructRef = BlenderFile.BlendStructRef
+        BlendStructDNA = BlenderFile.BlendStructDNA
 
+        rewind_offset = self.handle.seek(0, 1)
         data = self.handle.read(head.size)
         if data[0:8] != b'SDNANAME':
             raise BlenderFileImportException('Malformed index')
@@ -153,15 +207,15 @@ class BlenderFile(object):
         # Reading the blend file names
         offset = 8
         name_count = Int.unpack_from(data, offset).val
-        names = data[offset+4::].split(b'\x00', name_count)[:-1]
+        field_names = [n.decode('utf-8') for n in data[offset+4::].split(b'\x00', name_count)[:-1]]
 
         # Reading the blend file types
-        offset += sum((len(n) for n in names))+len(names)+4; align()         # Size of all names + size of all null char + name_count offset and Align the offset at 4 bytes
+        offset += sum((len(n) for n in field_names))+len(field_names)+4; align()         # Size of all names + size of all null char + name_count offset and Align the offset at 4 bytes
         if data[offset:offset+4] != b'TYPE':
             raise BlenderFileImportException('Malformed index')
 
         type_count = Int.unpack_from(data, offset+4).val
-        type_names = data[offset+8::].split(b'\x00', type_count)[:-1]
+        type_names = [n.decode('utf-8') for n in data[offset+8::].split(b'\x00', type_count)[:-1]]
 
         # Reading the types length
         offset += sum((len(t) for t in type_names))+len(type_names)+8; align()
@@ -171,7 +225,6 @@ class BlenderFile(object):
         offset += 4
         type_data_length = Short.format.size * type_count
         type_sizes = (x.val for x in Short.iter_unpack(data[offset:offset+type_data_length]))
-        types = tuple(zip(type_names, type_sizes))
 
         # Reading structures information
         offset += type_data_length; align()
@@ -191,12 +244,17 @@ class BlenderFile(object):
                 fields.append(StructField.unpack_from(data, offset))
                 offset += 4
             
-            structures.append(BlendStructRef(name=structure_type_index, fields=tuple(fields)))
+            structures.append(BlendStructDNA(index=structure_type_index, fields=tuple(fields)))
 
         # Rewind the blend at the end of the block head
-        self.handle.seek(data_offset, 0)
+        self.handle.seek(rewind_offset, 0)
 
-        return BlenderFile.BlendIndex(names=tuple(names), types=types, structures=tuple(structures) )
+        return BlenderFile.BlendIndex(
+            field_names=tuple(field_names),
+            type_names=tuple(type_names),
+            type_sizes=tuple(type_sizes),
+            structures=tuple(structures)
+        )
 
 
     def _parse_blocks(self):
@@ -223,7 +281,7 @@ class BlenderFile(object):
             # DNA1 indicates the index block of the blend file
             # ENDB indicates the end of the blend file
             if file_block_head.code == b'DNA1':
-                blend_index = self._parse_index(file_block_head, handle.seek(0, 1))
+                blend_index = self._parse_index(file_block_head)
             elif file_block_head.code == b'ENDB':
                 end_found = True
             else:
@@ -249,6 +307,26 @@ class BlenderFile(object):
         self.header = header
         self.handle = handle
         self.blocks, self.index = self._parse_blocks()
+        self.factories = {}
+
+    def __getattr__(self, _name):
+        # Format the name. Ex: scenes becomes Scene
+        name = _name[0:-1].capitalize()
+
+        # If the factory was already created
+        fact = self.factories.get(name)
+        if fact is not None:
+            return fact
+
+        # Factory creation
+        try:
+            fact = BlenderObjectFactory(self, self.index.type_names.index(name))
+            self.factories[name] = fact
+            return fact
+        except ValueError:
+            raise BlenderFileReadException('Data type {}({}) could not be found in the blend file'.format(_name, name))
 
     def close(self):
         self.handle.close()
+
+   
