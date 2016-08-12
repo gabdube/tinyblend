@@ -79,11 +79,9 @@ class BlenderFile(object):
     VersionInfo = namedtuple('VersionInfo', ('major', 'minor', 'rev'))
     BlendFileInfo = namedtuple('BlendFileInfo', ('version', 'arch', 'endian'))
 
+    # Index structures
     BlendStructRef = namedtuple('BlendStructRef', ('name', 'fields'))
     BlendIndex = namedtuple('BlendIndex', ('names', 'types', 'structures'))
-
-    # Cache for generated blender structures
-    StructCache = {} 
 
     @staticmethod
     def parse_header(header):
