@@ -2,25 +2,37 @@
 """
 Assets loader for the blender file format (.blend)
 
-author: Gabriel Dube
+Author: Gabriel Dube
 """
 
 from struct import Struct
 from enum import Enum
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 from itertools import permutations
 from weakref import ref
 
 class NamedStruct(object):
     """
-        A type that fuse namedtuple and Struct together. Greatly increase the readability of the source
-        when unpacking blender ressources
+        A type that fuse namedtuple and Struct together.
     """
 
     __fields__ = ('names', 'format')
     def __init__(self, name, fmt, *fields):
         self.format = Struct(fmt)
         self.names = namedtuple(name, fields)
+
+    @classmethod
+    def from_namedtuple(cls, ntuple, fmt):
+        """
+            Build a NamedStruct from a namedtuple
+
+            Author: Gabriel Dube
+        """
+        named_struct = super(NamedStruct, cls).__new__(cls)
+        named_struct.format = Struct(fmt)
+        named_struct.names = ntuple
+
+        return named_struct
 
     def unpack(self, data):
         return self.names(*self.format.unpack(data))
@@ -60,15 +72,26 @@ class BlenderFileReadException(BlenderFileException):
     def __init__(self, message):
         super().__init__(message)
 
+
+
 class BlenderObjectFactory(object):
     """
         Object that reads blender structures from datablocks
-        Used internally
 
         Author: Gabriel Dube
     """
+    def _build_object(self):
+        file = self.file
+
+        import pprint
+
+        name, fields = file._export_struct(self.struct_dna)
+        pprint.pprint(fields)
+
+        return None
+
     def __init__(self, file, struct_index):
-        self.file = ref(file)
+        self._file = ref(file)
 
         for index, struct_dna in enumerate(file.index.structures):
             if struct_dna.index == struct_index:
@@ -76,41 +99,72 @@ class BlenderObjectFactory(object):
                 self.sdna_index = index
                 break
 
+        dnafields = self.struct_dna.fields
+        dnatypes = file.index.type_names
+        self.has_name = 'ID' in (dnatypes[ftype] for ftype, fname in dnafields)
+        self.object = self._build_object()
+        
     def __len__(self):
-        file = self.file()
-        if file is None:
-            raise RuntimeError('Parent blend file was freed')
-
+        file = self.file
         blocks = file.blocks
         count = 0
+
         for block, offset in blocks:
             count += block.sdna == self.sdna_index
 
         return count
 
     def __repr__(self):
-        file = self.file()
-        if file is None:
-            raise RuntimeError('Parent blend file was freed')
+        file = self.file
 
         dna = self.struct_dna
-        return "<BlenderObjectFactory of '{}'>".format(file.index.type_names[dna.index])
+        return "<BlenderObjectFactory for '{}' objects>".format(file.index.type_names[dna.index])
 
     def __str__(self):
-        file = self.file()
-        if file is None:
-            raise RuntimeError('Parent blend file was freed')
+        file = self.file
 
         dna = self.struct_dna
         field_names = file.index.field_names
         type_names = file.index.type_names
         
         repr = type_names[dna.index] + '\n'
-        for f in dna.fields:
-            repr += '  {} {}'.format(type_names[f.type], field_names[f.name])+'\n'
+        for ftype, fname in dna.fields:
+            repr += '  {} {}'.format(type_names[ftype], field_names[fname])+'\n'
 
         return repr
 
+    def __iter__(self):
+        file = self.file
+        blocks = file.blocks
+
+        for block, offset in blocks:
+            if block.sdna == self.sdna_index:
+                data = file._read_block(block, offset)
+                yield self.object.unpack(data)
+    
+    @property
+    def file(self):
+        file = self._file()
+        if file is None:
+            raise RuntimeError('Parent blend file was freed')
+        
+        return file
+
+    def find(self, name):
+        """
+            Find and build an object by name. If the object does not have a name,
+            raise a BlenderFileReadException.
+
+            author: Gabriel Dube
+        """
+        file = self.file
+        if not self.has_name:
+            raise BlenderFileReadException('Object type do not have a name')
+
+        
+        for obj in self:
+            if obj.id == name:
+                return obj
 
 class BlenderFile(object):
     """
@@ -133,7 +187,10 @@ class BlenderFile(object):
     BlendFileInfo = namedtuple('BlendFileInfo', ('version', 'arch', 'endian'))
 
     # Index structures
-    BlendStructDNA = namedtuple('BlendStructDNA', ('index', 'fields'))
+    BlendStructField = namedtuple('BlendStructField', ('index_type', 'index_name'))
+    BlendStruct = namedtuple('BlendStruct', ('index', 'fields'))
+    BlendHumanStructField = namedtuple('BlendHumanStructField', ('name', 'type', 'ptr', 'count'))
+    BlendHumanStruct = namedtuple('BlendHumanStruct', ('name', 'fields'))
     BlendIndex = namedtuple('BlendIndex', ('field_names', 'type_names', 'type_sizes', 'structures'))
 
     @staticmethod
@@ -174,8 +231,67 @@ class BlenderFile(object):
 
         return BlenderFile.BlendFileInfo(version=version, arch=arch, endian=endian)
 
+    def _struct_lookup(self, index):
+        """
+            Lookup for a struct definition in the blender file.
+            Raise a BlenderFileReadException if index is not associated with a struct.
+
+            author: Gabriel Dube
+        """
+        
+        lookup = (s for s in self.index.structures if s.index == index)
+        try:
+            return next(lookup)
+        except StopIteration:
+            if index > len(self.index.type_names) or index < 0:
+                msg = 'Type index {} is not valid for this blend file'.format(index)
+            else:
+                type_name = self.index.type_names[index]
+                msg = 'Type {} is not associated with a structure'.format(type_name)
+
+            raise BlenderFileReadException(msg)
+
+    def _export_struct(self, struct, recursive=False):
+        """
+            Format a blender struct object fields in a human readable dict.
+            This is used when creating blender object types
+
+            If recursive is set to True, the function will also export the composed types of struct
+
+            author: Gabriel Dube
+        """        
+        BlendHumanStruct = BlenderFile.BlendHumanStruct
+        BlendHumanStructField = BlenderFile.BlendHumanStructField
+
+        base_types = ('float', 'int', 'short', 'char', 'uint64_t')
+        field_names = self.index.field_names
+        type_names = self.index.type_names
+
+        struct_name = type_names[struct.index]
+        struct_fields = []
+
+        for ftype, fname in struct.fields:
+            name = field_names[fname]
+            _type = type_names[ftype]
+
+            is_ptr = name[0] == '*'
+            is_array = name[-1] == ']'
+
+            if is_ptr:
+                name = name[1::]
+            if is_array:
+                name = name[0:name.index('[')]
+
+            if recursive and not _type in base_types:
+                _type = self._export_struct(self._struct_lookup(ftype))
+
+            struct_fields.append(BlendHumanStructField(name=name, type=_type, ptr=is_ptr, count=0))
+
+        return BlendHumanStruct(name=struct_name, fields=struct_fields)
+
     def _fmt_strct(self, fmt):
         """
+            Format a Struct format string to match the blender file endianess and pointer sizes.
             Author: Gabriel Dube
         """
         head = self.header
@@ -196,8 +312,8 @@ class BlenderFile(object):
 
         Int = NamedStruct('Int', self._fmt_strct('i'), 'val')
         Short = NamedStruct('Short', self._fmt_strct('h'), 'val')
-        StructField = NamedStruct('StructField', self._fmt_strct('hh'), 'type', 'name')
-        BlendStructDNA = BlenderFile.BlendStructDNA
+        StructField = NamedStruct.from_namedtuple(BlenderFile.BlendStructField, self._fmt_strct('hh'))
+        BlendStruct = BlenderFile.BlendStruct
 
         rewind_offset = self.handle.seek(0, 1)
         data = self.handle.read(head.size)
@@ -244,7 +360,7 @@ class BlenderFile(object):
                 fields.append(StructField.unpack_from(data, offset))
                 offset += 4
             
-            structures.append(BlendStructDNA(index=structure_type_index, fields=tuple(fields)))
+            structures.append(BlendStruct(index=structure_type_index, fields=tuple(fields)))
 
         # Rewind the blend at the end of the block head
         self.handle.seek(rewind_offset, 0)
@@ -296,6 +412,17 @@ class BlenderFile(object):
             raise BlenderFileImportException('End of the blend file was not found')
         
         return tuple(file_block_heads), blend_index
+
+    def _read_block(self, block, offset):
+        """
+            Read a block data and return it.
+
+            Author: Gabriel Dube
+        """
+        handle = self.handle
+        handle.seek(offset, 0)
+        data = handle.read(block.size)
+        return data 
 
     def __init__(self, blend_file_name):
         handle = open('./assets/'+blend_file_name, 'rb')
