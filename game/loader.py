@@ -7,9 +7,37 @@ Author: Gabriel Dube
 
 from struct import Struct
 from enum import Enum
-from collections import namedtuple, OrderedDict
-from itertools import permutations
+from collections import namedtuple
 from weakref import ref
+
+class BlenderFileException(Exception):
+    """
+        Base exception class for blender import related exceptions
+
+        author: Gabriel Dube
+    """
+    def __init__(self, message):
+        self.message = message
+
+    def __repr__(self):
+        return "Error while executing action on blender file: {}".format(repr(self.message))
+
+class BlenderFileImportException(BlenderFileException):
+    """
+        Exception raised when a blender file import fails.
+        
+        author: Gabriel Dube
+    """
+    def __init__(self, message):
+        super().__init__(message)
+
+class BlenderFileReadException(BlenderFileException):
+    """
+        Exception raised when reading bad values from a blend file
+        author: Gabriel Dube
+    """
+    def __init__(self, message):
+        super().__init__(message)
 
 class NamedStruct(object):
     """
@@ -43,52 +71,49 @@ class NamedStruct(object):
     def iter_unpack(self, data):
         return (self.names(*d) for d in self.format.iter_unpack(data))
 
-class BlenderFileException(Exception):
+
+class BlenderObject(object):
     """
-        Base exception class for blender import related exceptions
+        Blender object base.
 
         author: Gabriel Dube
     """
-    def __init__(self, message):
-        self.message = message
+    
+    def __new__(cls, file, data):
+        obj = super(BlenderObject, cls).__new__(cls)
+        obj._file = file
+        return obj
 
-    def __repr__(self):
-        return "Error while executing action on blender file: {}".format(repr(self.message))
-
-class BlenderFileImportException(BlenderFileException):
-    """
-        Exception raised when a blender file import fails.
+    @property
+    def file(self):
+        file = self._file()
+        if file is None:
+            raise RuntimeError('Parent blend file was freed')
         
-        author: Gabriel Dube
-    """
-    def __init__(self, message):
-        super().__init__(message)
-
-class BlenderFileReadException(BlenderFileException):
-    """
-        Exception raised when reading bad values from a blend file
-        author: Gabriel Dube
-    """
-    def __init__(self, message):
-        super().__init__(message)
-
-
+        return file
 
 class BlenderObjectFactory(object):
     """
-        Object that reads blender structures from datablocks
+        Object that reads blender structures from datablocks. A BlenderObjectFactory
+        is created when the data types is accessed for the first time in a blend file.
+        The BlenderObjectFactory is then cached because their creation can be quite expensive.
 
-        Author: Gabriel Dube
+        A BlenderObjectFactory keeps a weakref to its parent blend file. If the parent file
+        is closed or freed, all its methods will raise a RuntimeError
+
+        The BlenderObjectFactory creates a new types from the blender structure definition,
+        this object is then used to unpack the blender objects from raw data. For more information
+        see the BlenderObject documentation.
+
+        author: Gabriel Dube
     """
     def _build_object(self):
         file = self.file
+        name, fields = file._export_struct(self.struct_dna, recursive=True)
 
-        import pprint
+        obj = type(name, (BlenderObject,), {})
 
-        name, fields = file._export_struct(self.struct_dna)
-        pprint.pprint(fields)
-
-        return None
+        return obj
 
     def __init__(self, file, struct_index):
         self._file = ref(file)
@@ -140,7 +165,7 @@ class BlenderObjectFactory(object):
         for block, offset in blocks:
             if block.sdna == self.sdna_index:
                 data = file._read_block(block, offset)
-                yield self.object.unpack(data)
+                yield self.object(self._file, data)
     
     @property
     def file(self):
@@ -179,19 +204,20 @@ class BlenderFile(object):
         author: Gabriel Dube
     """
 
-    Arch = Enum('Arch', (('X32', 'I'), ('X64', 'Q')), qualname='BlenderFile.Arch')
+    Arch   = Enum('Arch', (('X32', 'I'), ('X64', 'Q')), qualname='BlenderFile.Arch')
     Endian = Enum('Endian', (('Little', '<'), ('Big', '>')), qualname='BlenderFile.Endian')
 
     # Version structures
-    VersionInfo = namedtuple('VersionInfo', ('major', 'minor', 'rev'))
+    VersionInfo   = namedtuple('VersionInfo', ('major', 'minor', 'rev'))
     BlendFileInfo = namedtuple('BlendFileInfo', ('version', 'arch', 'endian'))
 
     # Index structures
-    BlendStructField = namedtuple('BlendStructField', ('index_type', 'index_name'))
-    BlendStruct = namedtuple('BlendStruct', ('index', 'fields'))
+    BlendBlockHeader      = namedtuple('BlendBlockHeader', ('code', 'size', 'addr', 'sdna', 'count'))
+    BlendStructField      = namedtuple('BlendStructField', ('index_type', 'index_name'))
+    BlendStruct           = namedtuple('BlendStruct', ('index', 'fields'))
     BlendHumanStructField = namedtuple('BlendHumanStructField', ('name', 'type', 'ptr', 'count'))
-    BlendHumanStruct = namedtuple('BlendHumanStruct', ('name', 'fields'))
-    BlendIndex = namedtuple('BlendIndex', ('field_names', 'type_names', 'type_sizes', 'structures'))
+    BlendHumanStruct      = namedtuple('BlendHumanStruct', ('name', 'fields'))
+    BlendIndex            = namedtuple('BlendIndex', ('field_names', 'type_names', 'type_sizes', 'structures'))
 
     @staticmethod
     def parse_header(header):
@@ -282,12 +308,12 @@ class BlenderFile(object):
             if is_array:
                 name = name[0:name.index('[')]
 
-            if recursive and not _type in base_types:
+            if recursive and not is_ptr and not is_array and not _type in base_types:
                 _type = self._export_struct(self._struct_lookup(ftype))
 
             struct_fields.append(BlendHumanStructField(name=name, type=_type, ptr=is_ptr, count=0))
 
-        return BlendHumanStruct(name=struct_name, fields=struct_fields)
+        return BlendHumanStruct(name=struct_name, fields=tuple(struct_fields))
 
     def _fmt_strct(self, fmt):
         """
@@ -312,7 +338,7 @@ class BlenderFile(object):
 
         Int = NamedStruct('Int', self._fmt_strct('i'), 'val')
         Short = NamedStruct('Short', self._fmt_strct('h'), 'val')
-        StructField = NamedStruct.from_namedtuple(BlenderFile.BlendStructField, self._fmt_strct('hh'))
+        BlendStructField = NamedStruct.from_namedtuple(BlenderFile.BlendStructField, self._fmt_strct('hh'))
         BlendStruct = BlenderFile.BlendStruct
 
         rewind_offset = self.handle.seek(0, 1)
@@ -357,7 +383,7 @@ class BlenderFile(object):
             fields = []
             offset += 4
             for _ in range(field_count):
-                fields.append(StructField.unpack_from(data, offset))
+                fields.append(BlendStructField.unpack_from(data, offset))
                 offset += 4
             
             structures.append(BlendStruct(index=structure_type_index, fields=tuple(fields)))
@@ -381,7 +407,7 @@ class BlenderFile(object):
             Author: Gabriel Dube
         """
         handle = self.handle
-        BlendBlockHeader = NamedStruct('BlendBlockHeader', self._fmt_strct('4siPii'), 'code', 'size', 'addr', 'sdna', 'count')
+        BlendBlockHeader = NamedStruct.from_namedtuple(BlenderFile.BlendBlockHeader, self._fmt_strct('4siPii'))
 
         # Get the blend file size
         end = handle.seek(0, 2)
@@ -451,7 +477,7 @@ class BlenderFile(object):
             self.factories[name] = fact
             return fact
         except ValueError:
-            raise BlenderFileReadException('Data type {}({}) could not be found in the blend file'.format(_name, name))
+            raise BlenderFileReadException('Data type {} ({}) could not be found in the blend file'.format(_name, name))
 
     def close(self):
         self.handle.close()
