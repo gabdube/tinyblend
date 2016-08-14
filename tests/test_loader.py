@@ -11,6 +11,7 @@ sys.path.append(dn(dn(__file__)))
 
 import pytest
 from game import BlenderFile, BlenderFileImportException, BlenderFileReadException
+from game.loader import BlenderObjectFactory
 
 def test_open_blend_file():
     blend = BlenderFile('tests/test1.blend')
@@ -25,12 +26,14 @@ def test_open_blend_file():
 def test_should_read_scene_data():
     blend = BlenderFile('tests/test1.blend')
 
-    scenes = blend.scenes
-    assert scenes.file is blend, 'Scenes file is not blend'
-    assert len(scenes) == 1, 'Test blend should have one scene'
+    worlds = blend.worlds
+    assert worlds.file is blend, 'Scenes file is not blend'
+    assert len(worlds) == 1, 'Test blend should have one world'
 
-    #print(str(scenes))
-    test_scene = scenes.find('MyTestScene')
+    print(worlds.signature())
+
+    test_world = worlds.find('TestWorld')
+    print(test_world)
 
     pytest.raises(BlenderFileReadException, getattr, blend, 'foos')
 
@@ -48,6 +51,26 @@ def test_blend_struct_lookup():
 
     pytest.raises(BlenderFileReadException, blend._struct_lookup, float_index)
     pytest.raises(BlenderFileReadException, blend._struct_lookup, 983742)
+
+    blend.close()
+
+def test_blender_object_format_size():
+    blend = BlenderFile('tests/test1.blend')
+
+    index = blend.index
+    scene_index = index.type_names.index('Scene')
+    world_index = index.type_names.index('World')
+    scene_size = index.type_sizes[scene_index]
+    world_size = index.type_sizes[world_index]
+    
+    scenes = blend.scenes
+    worlds = blend.worlds
+
+    scenes_fmt = scenes.object.FMT
+    worlds_fmt = worlds.object.FMT
+
+    assert worlds_fmt.size == world_size, 'World object format size do not match type size'
+    #assert scenes_fmt.size == scene_size, 'Scene object format size do not match type size'
 
     blend.close()
 

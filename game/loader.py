@@ -10,6 +10,7 @@ from enum import Enum
 from collections import namedtuple
 from weakref import ref
 
+# List of base types found in blend fields and their struct char representation.
 _BASE_TYPES = {'float':'f', 'int':'i', 'short':'h', 'char':'c', 'uint64_t':'Q'}
 
 class BlenderFileException(Exception):
@@ -78,16 +79,22 @@ class BlenderObject(object):
     """
         Blender object base. Unpack raw data depending on the subclass format string.
 
-        In order to read pointer fields, a lookup in the blend file is neccesary.
+        Class names:
+            VERSION: Version of the blend file for this struct. (Blender structures change with blender versions)
 
-        This class keeps a weakref to to its parent blend file. If the parent file
-        is closed or freed, the pointer lookups will fail.
+        Instance names:
+            file: The parent file of this object
+
+        Pointer Fields:
+            In order to read pointer fields, a lookup in the blend file is neccesary.
+            This class keeps a weakref to to its parent blend file. If the parent file
+            is closed or freed, the pointer lookup will raise a RuntimeError
 
         author: Gabriel Dube
     """
-    
-    # Format Struct. Overriden in subclasses.
-    FMT = None
+
+    # Version of the blend file. Overriden in subclasses.
+    VERSION = None
 
     def __new__(cls, file, data):
         obj = super(BlenderObject, cls).__new__(cls)
@@ -125,45 +132,11 @@ class BlenderObjectFactory(object):
             author: Gabriel Dube
         """
         file = self.file
-        base_types = _BASE_TYPES
-        BlendHumanStruct = BlenderFile.BlendHumanStruct
-
-        ptr = file.header.arch.value
+        
         name, fields = file._export_struct(self.struct_dna, recursive=True)
-
-        # Compile a Struct format string
-        def compile_fmt(fields):
-            fmt = ''
-
-            for f in fields:
-                t = f.type
-
-                # If type is a pointer
-                if f.ptr:
-                    fmt += (ptr*f.count)
-                    continue
-                
-                # If type is a base type
-                if t in base_types:
-                    # Strings
-                    if t == 'char' and f.count > 1:
-                        t = str(f.count)+'s'
-                    else:
-                        t = (base_types[t] * f.count)
-                    fmt += t
-                    continue
-
-                # If type is another structure
-                if isinstance(t, BlendHumanStruct):
-                    fmt += (compile_fmt(t.fields) * f.count)
-                    continue
-
-            return fmt
-                    
-
-        fmt = Struct(compile_fmt(fields))
-
-        obj = type(name, (BlenderObject,), {'FMT':fmt})
+        fmt = Struct(compile_fmt(fields, file.header.arch.value))
+        names = compile_names(fields)
+        obj = type(name, (BlenderObject,), {'FMT':fmt, 'NAMES':names, 'VERSION':file.header.version})
 
         return obj
 
@@ -197,19 +170,6 @@ class BlenderObjectFactory(object):
         dna = self.struct_dna
         return "<BlenderObjectFactory for '{}' objects>".format(file.index.type_names[dna.index])
 
-    def __str__(self):
-        file = self.file
-
-        dna = self.struct_dna
-        field_names = file.index.field_names
-        type_names = file.index.type_names
-        
-        repr = type_names[dna.index] + '\n'
-        for ftype, fname in dna.fields:
-            repr += '  {} {}'.format(type_names[ftype], field_names[fname])+'\n'
-
-        return repr
-
     def __iter__(self):
         file = self.file
         blocks = file.blocks
@@ -240,8 +200,28 @@ class BlenderObjectFactory(object):
 
         
         for obj in self:
-            if obj.id == name:
+            print(obj.id.name)
+            if obj.id.name[2:] == name:
                 return obj
+
+
+    def signature(self):
+        """
+            Return a representation of the struct.
+
+            author: Gabriel Dube
+        """
+        file = self.file
+
+        dna = self.struct_dna
+        field_names = file.index.field_names
+        type_names = file.index.type_names
+        
+        repr = type_names[dna.index] + '\n'
+        for ftype, fname in dna.fields:
+            repr += '|-- {} {}'.format(type_names[ftype], field_names[fname])+'\n'
+
+        return repr
 
 class BlenderFile(object):
     """
@@ -534,10 +514,58 @@ class BlenderFile(object):
             fact = BlenderObjectFactory(self, self.index.type_names.index(name))
             self.factories[name] = fact
             return fact
-        except ImportError:
+        except ValueError:
             raise BlenderFileReadException('Data type {} ({}) could not be found in the blend file'.format(_name, name))
 
     def close(self):
         self.handle.close()
+
+def compile_names(fields, base=''):
+    BlendHumanStruct = BlenderFile.BlendHumanStruct
+
+    names = []
+    for f in fields:
+        if isinstance(f.type, BlendHumanStruct):
+            names.extend(compile_names(f.type.fields, f.name+'.'))
+        else:
+            names.append(base+f.name)
+
+    return names
+    
+def compile_fmt(fields, ptr):
+    """
+        Compile a list of BlenderFile.BlendHumanStructField into a format string that can be passed
+        to a Struct objet
+
+        Author: Gabriel Dube
+    """
+    base_types = _BASE_TYPES
+    BlendHumanStruct = BlenderFile.BlendHumanStruct
+    fmt = ''
+
+    for f in fields:
+        t = f.type
+
+        # If type is a pointer
+        if f.ptr:
+            fmt += (ptr*f.count)
+            continue
+        
+        # If type is a base type
+        if t in base_types:
+            # Strings
+            if t == 'char' and f.count > 1:
+                t = str(f.count)+'s'
+            else:
+                t = (base_types[t] * f.count)
+            fmt += t
+            continue
+
+        # If type is another structure
+        if isinstance(t, BlendHumanStruct):
+            fmt += compile_fmt(t.fields, ptr) * f.count
+            continue
+
+    return fmt
 
    
