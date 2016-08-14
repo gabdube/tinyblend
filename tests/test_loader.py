@@ -9,9 +9,9 @@ from os.path import dirname as dn
 sys.path.append(dn(dn(__file__)))
 
 
-import pytest
+import pytest, gc
 from game import BlenderFile, BlenderFileImportException, BlenderFileReadException
-from game.loader import BlenderObjectFactory
+from game.loader import BlenderObjectFactory, BlenderObject
 
 def test_open_blend_file():
     blend = BlenderFile('tests/test1.blend')
@@ -27,13 +27,11 @@ def test_should_read_scene_data():
     blend = BlenderFile('tests/test1.blend')
 
     worlds = blend.worlds
-    assert worlds.file is blend, 'Scenes file is not blend'
+    assert worlds.file is blend, 'World file is not blend'
     assert len(worlds) == 1, 'Test blend should have one world'
 
-    print(worlds.signature())
-
-    test_world = worlds.find('TestWorld')
-    print(test_world)
+    #test_world = worlds.find('TestWorld')
+    #print(test_world)
 
     pytest.raises(BlenderFileReadException, getattr, blend, 'foos')
 
@@ -54,38 +52,39 @@ def test_blend_struct_lookup():
 
     blend.close()
 
-def test_blender_object_format_size():
-    blend = BlenderFile('tests/test1.blend')
-
-    index = blend.index
-    scene_index = index.type_names.index('Scene')
-    world_index = index.type_names.index('World')
-    scene_size = index.type_sizes[scene_index]
-    world_size = index.type_sizes[world_index]
-    
-    scenes = blend.scenes
-    worlds = blend.worlds
-
-    scenes_fmt = scenes.object.FMT
-    worlds_fmt = worlds.object.FMT
-
-    assert worlds_fmt.size == world_size, 'World object format size do not match type size'
-    #assert scenes_fmt.size == scene_size, 'Scene object format size do not match type size'
-
-    blend.close()
-
 def test_weakref():
     blend = BlenderFile('tests/test1.blend')
-    scenes = blend.scenes
+    worlds = blend.worlds
     
     del blend
 
-    pytest.raises(RuntimeError, getattr, scenes, 'file')
-    pytest.raises(RuntimeError, len, scenes)
-    pytest.raises(RuntimeError, repr, scenes)
-    pytest.raises(RuntimeError, str, scenes)
-    pytest.raises(RuntimeError, scenes.find, '...')
+    pytest.raises(RuntimeError, getattr, worlds, 'file')
+    pytest.raises(RuntimeError, len, worlds)
+    pytest.raises(RuntimeError, repr, worlds)
+    pytest.raises(RuntimeError, str, worlds)
+    pytest.raises(RuntimeError, worlds.find, '...')
 
+def test_cache_lookup():
+    blend = BlenderFile('tests/test1.blend')
+    v = blend.header.version
+
+    worlds = blend.worlds
+
+    assert BlenderObjectFactory.CACHE[v]['World']() is not None
+    assert BlenderObject.CACHE[v]['World']() is not None
+    
+    del worlds
+    gc.collect()
+
+    assert BlenderObjectFactory.CACHE[v]['World']() is None
+    assert BlenderObject.CACHE[v]['World']() is None
+
+    worlds = blend.worlds
+    assert isinstance(worlds, BlenderObjectFactory)
+    assert BlenderObjectFactory.CACHE[v]['World']() is not None
+    assert BlenderObject.CACHE[v]['World']() is not None
+
+    blend.close()
 
 def test_open_bad_blend_file():
     pytest.raises(BlenderFileImportException, BlenderFile, 'tests/test2.blend')

@@ -92,6 +92,8 @@ class BlenderObject(object):
 
         author: Gabriel Dube
     """
+    # Cache for BlenderObject subclasses. Dict of {VERSION: {CLASS_NAME: CLASS}}
+    CACHE = {}
 
     # Version of the blend file. Overriden in subclasses.
     VERSION = None
@@ -124,6 +126,8 @@ class BlenderObjectFactory(object):
 
         author: Gabriel Dube
     """
+    # Cache for instanced factories. Dict of {VERSION: {CLASS_NAME: CLASS}}
+    CACHE = {}
 
     def _build_object(self):
         """
@@ -132,12 +136,19 @@ class BlenderObjectFactory(object):
             author: Gabriel Dube
         """
         file = self.file
-        
+        version = file.header.version
         name, fields = file._export_struct(self.struct_dna, recursive=True)
-        fmt = Struct(compile_fmt(fields, file.header.arch.value))
-        names = compile_names(fields)
-        obj = type(name, (BlenderObject,), {'FMT':fmt, 'NAMES':names, 'VERSION':file.header.version})
+        obj = type(name, (BlenderObject,), {'VERSION':version})
 
+        # Cache new type in the BlenderObject class
+        version_cache = BlenderObject.CACHE.get(version)
+        if version_cache is None:
+            BlenderObject.CACHE[version] = {name: ref(obj) }
+        else:
+            _obj = version_cache.get(name)
+            if _obj is None or _obj() is None:
+                version_cache[name] = ref(obj)
+        
         return obj
 
     def __init__(self, file, struct_index):
@@ -498,21 +509,26 @@ class BlenderFile(object):
         self.header = header
         self.handle = handle
         self.blocks, self.index = self._parse_blocks()
-        self.factories = {}
+
+        if BlenderObjectFactory.CACHE.get(header.version) is None:
+            BlenderObjectFactory.CACHE[header.version] = {}
 
     def __getattr__(self, _name):
+        version = self.header.version
+        factories = BlenderObjectFactory.CACHE.get(version)
+
         # Format the name. Ex: scenes becomes Scene
         name = _name[0:-1].capitalize()
 
         # If the factory was already created
-        fact = self.factories.get(name)
-        if fact is not None:
-            return fact
+        fact = factories.get(name)
+        if fact is not None and fact() is not None:
+            return fact()
 
         # Factory creation
         try:
             fact = BlenderObjectFactory(self, self.index.type_names.index(name))
-            self.factories[name] = fact
+            factories[name] = ref(fact)
             return fact
         except ValueError:
             raise BlenderFileReadException('Data type {} ({}) could not be found in the blend file'.format(_name, name))
