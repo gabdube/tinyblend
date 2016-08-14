@@ -10,6 +10,8 @@ from enum import Enum
 from collections import namedtuple
 from weakref import ref
 
+_BASE_TYPES = {'float':'f', 'int':'i', 'short':'h', 'char':'c', 'uint64_t':'Q'}
+
 class BlenderFileException(Exception):
     """
         Base exception class for blender import related exceptions
@@ -74,11 +76,19 @@ class NamedStruct(object):
 
 class BlenderObject(object):
     """
-        Blender object base.
+        Blender object base. Unpack raw data depending on the subclass format string.
+
+        In order to read pointer fields, a lookup in the blend file is neccesary.
+
+        This class keeps a weakref to to its parent blend file. If the parent file
+        is closed or freed, the pointer lookups will fail.
 
         author: Gabriel Dube
     """
     
+    # Format Struct. Overriden in subclasses.
+    FMT = None
+
     def __new__(cls, file, data):
         obj = super(BlenderObject, cls).__new__(cls)
         obj._file = file
@@ -101,17 +111,59 @@ class BlenderObjectFactory(object):
         A BlenderObjectFactory keeps a weakref to its parent blend file. If the parent file
         is closed or freed, all its methods will raise a RuntimeError
 
-        The BlenderObjectFactory creates a new types from the blender structure definition,
-        this object is then used to unpack the blender objects from raw data. For more information
+        The BlenderObjectFactory creates a new type from the blender structure definition,
+        this type is then used to unpack the blender objects from raw data. For more information
         see the BlenderObject documentation.
 
         author: Gabriel Dube
     """
+
     def _build_object(self):
+        """
+            Create the blender object for the factory.
+
+            author: Gabriel Dube
+        """
         file = self.file
+        base_types = _BASE_TYPES
+        BlendHumanStruct = BlenderFile.BlendHumanStruct
+
+        ptr = file.header.arch.value
         name, fields = file._export_struct(self.struct_dna, recursive=True)
 
-        obj = type(name, (BlenderObject,), {})
+        # Compile a Struct format string
+        def compile_fmt(fields):
+            fmt = ''
+
+            for f in fields:
+                t = f.type
+
+                # If type is a pointer
+                if f.ptr:
+                    fmt += (ptr*f.count)
+                    continue
+                
+                # If type is a base type
+                if t in base_types:
+                    # Strings
+                    if t == 'char' and f.count > 1:
+                        t = str(f.count)+'s'
+                    else:
+                        t = (base_types[t] * f.count)
+                    fmt += t
+                    continue
+
+                # If type is another structure
+                if isinstance(t, BlendHumanStruct):
+                    fmt += (compile_fmt(t.fields) * f.count)
+                    continue
+
+            return fmt
+                    
+
+        fmt = Struct(compile_fmt(fields))
+
+        obj = type(name, (BlenderObject,), {'FMT':fmt})
 
         return obj
 
@@ -289,7 +341,8 @@ class BlenderFile(object):
         BlendHumanStruct = BlenderFile.BlendHumanStruct
         BlendHumanStructField = BlenderFile.BlendHumanStructField
 
-        base_types = ('float', 'int', 'short', 'char', 'uint64_t')
+        base_types = _BASE_TYPES.keys()
+        
         field_names = self.index.field_names
         type_names = self.index.type_names
 
@@ -305,13 +358,18 @@ class BlenderFile(object):
 
             if is_ptr:
                 name = name[1::]
+
             if is_array:
-                name = name[0:name.index('[')]
+                x, y = name.index('['), name.index(']')
+                count = int(name[x+1:y])
+                name = name[0:x]
+            else:
+                count = 1
 
             if recursive and not is_ptr and not is_array and not _type in base_types:
                 _type = self._export_struct(self._struct_lookup(ftype))
 
-            struct_fields.append(BlendHumanStructField(name=name, type=_type, ptr=is_ptr, count=0))
+            struct_fields.append(BlendHumanStructField(name=name, type=_type, ptr=is_ptr, count=count))
 
         return BlendHumanStruct(name=struct_name, fields=tuple(struct_fields))
 
@@ -476,7 +534,7 @@ class BlenderFile(object):
             fact = BlenderObjectFactory(self, self.index.type_names.index(name))
             self.factories[name] = fact
             return fact
-        except ValueError:
+        except ImportError:
             raise BlenderFileReadException('Data type {} ({}) could not be found in the blend file'.format(_name, name))
 
     def close(self):
