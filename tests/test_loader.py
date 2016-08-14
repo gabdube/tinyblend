@@ -30,8 +30,11 @@ def test_should_read_scene_data():
     assert worlds.file is blend, 'World file is not blend'
     assert len(worlds) == 1, 'Test blend should have one world'
 
-    #test_world = worlds.find('TestWorld')
-    #print(test_world)
+    first_world = next(iter(worlds))
+    assert first_world.file is blend
+    assert first_world.VERSION == blend.header.version
+    assert len(first_world.mtex) == 18
+    assert first_world.aodist > 12.8999 and first_world.aodist < 12.90001
 
     pytest.raises(BlenderFileReadException, getattr, blend, 'foos')
 

@@ -9,6 +9,7 @@ from struct import Struct
 from enum import Enum
 from collections import namedtuple
 from weakref import ref
+import re
 
 # List of base types found in blend fields and their struct char representation.
 _BASE_TYPES = {'float':'f', 'int':'i', 'short':'h', 'char':'c', 'uint64_t':'Q'}
@@ -66,6 +67,7 @@ class NamedStruct(object):
         return named_struct
 
     def unpack(self, data):
+        values = self.format.unpack(data)
         return self.names(*self.format.unpack(data))
 
     def unpack_from(self, data, offset):
@@ -94,13 +96,44 @@ class BlenderObject(object):
     """
     # Cache for BlenderObject subclasses. Dict of {VERSION: {CLASS_NAME: CLASS}}
     CACHE = {}
-
+    
     # Version of the blend file. Overriden in subclasses.
     VERSION = None
+
+    # Format Struct to unpack the raw data. Overriden in subclasses
+    FMT = None
+
+    @staticmethod
+    def _import_local_data(names, data, obj):
+        template = re.compile('(.+)_\d+_(\d+)')
+        gen = zip(names, data)
+        while True:
+            name, value = gen.__next__()
+            match = template.findall(name)
+            if len(match) == 0:
+                setattr(obj, name, value)
+            else:
+                arr = []
+                for i in range(int(match[0][1])):
+                    _, value = gen.__next__()
+                    arr.append(value)
+                setattr(obj, match[0][0], arr)
+
+    @staticmethod
+    def _import_nonlocal_data(obj):
+        pass
 
     def __new__(cls, file, data):
         obj = super(BlenderObject, cls).__new__(cls)
         obj._file = file
+
+        BlenderObject._import_nonlocal_data(obj)
+
+        try:
+            BlenderObject._import_local_data(cls.FMT.names._fields, cls.FMT.unpack(data), obj)
+        except StopIteration:
+            pass
+
         return obj
 
     @property
@@ -129,27 +162,51 @@ class BlenderObjectFactory(object):
     # Cache for instanced factories. Dict of {VERSION: {CLASS_NAME: CLASS}}
     CACHE = {}
 
-    def _build_object(self):
+    @staticmethod
+    def _build_objects(file, struct):
         """
             Create the blender object for the factory.
 
             author: Gabriel Dube
         """
-        file = self.file
+        base_types = _BASE_TYPES
+        head = file.header
+        arch, endian = head[1::]
+        
+        # Get cache
         version = file.header.version
-        name, fields = file._export_struct(self.struct_dna, recursive=True)
-        obj = type(name, (BlenderObject,), {'VERSION':version})
-
-        # Cache new type in the BlenderObject class
         version_cache = BlenderObject.CACHE.get(version)
         if version_cache is None:
-            BlenderObject.CACHE[version] = {name: ref(obj) }
-        else:
-            _obj = version_cache.get(name)
-            if _obj is None or _obj() is None:
-                version_cache[name] = ref(obj)
+            version_cache = {}
+            BlenderObject.CACHE[version] = version_cache
         
-        return obj
+        # Get the name of the struct
+        name = file.index.type_names[struct.index]
+
+        # If type was cached, use the cached version
+        obj = (version_cache.get(name) or (lambda: None) )()
+        if obj is not None:
+            return obj
+
+        # If type was not cached, create a new blender object type
+        dependencies = []
+        name, fields = file._export_struct(struct)
+        for f, dna in zip(fields, struct.fields):
+            if f.type not in base_types and not f.ptr:
+                tmp_dna = file._struct_lookup(dna.index_type)
+                dependencies.append(BlenderObjectFactory._build_objects(file, tmp_dna)[0])
+        
+        fmt, fmt_names = compile_fmt(fields)
+        fmt_names = namedtuple(name, fmt_names)
+        fmt = (endian.value)+fmt.replace('P', arch.value)
+        fmt = NamedStruct.from_namedtuple(fmt_names, fmt)
+        
+
+        # Then build the object itself
+        obj = type(name, (BlenderObject,), {'VERSION':version, 'FMT': fmt})
+        version_cache[name] = ref(obj)
+
+        return obj, tuple(dependencies)
 
     def __init__(self, file, struct_index):
         self._file = ref(file)
@@ -163,7 +220,7 @@ class BlenderObjectFactory(object):
         dnafields = self.struct_dna.fields
         dnatypes = file.index.type_names
         self.has_name = 'ID' in (dnatypes[ftype] for ftype, fname in dnafields)
-        self.object = self._build_object()
+        self.object, self.dependencies = BlenderObjectFactory._build_objects(file, self.struct_dna)
         
     def __len__(self):
         file = self.file
@@ -209,9 +266,7 @@ class BlenderObjectFactory(object):
         if not self.has_name:
             raise BlenderFileReadException('Object type do not have a name')
 
-        
         for obj in self:
-            print(obj.id.name)
             if obj.id.name[2:] == name:
                 return obj
 
@@ -255,12 +310,12 @@ class BlenderFile(object):
     BlendFileInfo = namedtuple('BlendFileInfo', ('version', 'arch', 'endian'))
 
     # Index structures
-    BlendBlockHeader      = namedtuple('BlendBlockHeader', ('code', 'size', 'addr', 'sdna', 'count'))
-    BlendStructField      = namedtuple('BlendStructField', ('index_type', 'index_name'))
-    BlendStruct           = namedtuple('BlendStruct', ('index', 'fields'))
-    BlendHumanStructField = namedtuple('BlendHumanStructField', ('name', 'type', 'ptr', 'count'))
-    BlendHumanStruct      = namedtuple('BlendHumanStruct', ('name', 'fields'))
-    BlendIndex            = namedtuple('BlendIndex', ('field_names', 'type_names', 'type_sizes', 'structures'))
+    BlendBlockHeader     = namedtuple('BlendBlockHeader', ('code', 'size', 'addr', 'sdna', 'count'))
+    BlendStructFieldDNA  = namedtuple('BlendStructFieldDNA', ('index_type', 'index_name'))
+    BlendStructDNA       = namedtuple('BlendStructDNA', ('index', 'fields'))
+    BlendStructField     = namedtuple('BlendStructField', ('name', 'type', 'size', 'ptr', 'count'))
+    BlendStruct          = namedtuple('BlendStruct', ('name', 'fields'))
+    BlendIndex           = namedtuple('BlendIndex', ('field_names', 'type_names', 'type_sizes', 'structures'))
 
     @staticmethod
     def parse_header(header):
@@ -320,7 +375,7 @@ class BlenderFile(object):
 
             raise BlenderFileReadException(msg)
 
-    def _export_struct(self, struct, recursive=False):
+    def _export_struct(self, struct):
         """
             Format a blender struct object fields in a human readable dict.
             This is used when creating blender object types
@@ -329,13 +384,12 @@ class BlenderFile(object):
 
             author: Gabriel Dube
         """        
-        BlendHumanStruct = BlenderFile.BlendHumanStruct
-        BlendHumanStructField = BlenderFile.BlendHumanStructField
+        BlendStruct = BlenderFile.BlendStruct
+        BlendStructField = BlenderFile.BlendStructField
 
-        base_types = _BASE_TYPES.keys()
-        
         field_names = self.index.field_names
         type_names = self.index.type_names
+        type_sizes = self.index.type_sizes
 
         struct_name = type_names[struct.index]
         struct_fields = []
@@ -343,6 +397,7 @@ class BlenderFile(object):
         for ftype, fname in struct.fields:
             name = field_names[fname]
             _type = type_names[ftype]
+            size = type_sizes[ftype]
 
             is_ptr = name[0] == '*'
             is_array = name[-1] == ']'
@@ -357,12 +412,9 @@ class BlenderFile(object):
             else:
                 count = 1
 
-            if recursive and not is_ptr and not is_array and not _type in base_types:
-                _type = self._export_struct(self._struct_lookup(ftype))
+            struct_fields.append(BlendStructField(name=name, type=_type, size=size, ptr=is_ptr, count=count))
 
-            struct_fields.append(BlendHumanStructField(name=name, type=_type, ptr=is_ptr, count=count))
-
-        return BlendHumanStruct(name=struct_name, fields=tuple(struct_fields))
+        return BlendStruct(name=struct_name, fields=tuple(struct_fields))
 
     def _fmt_strct(self, fmt):
         """
@@ -387,8 +439,8 @@ class BlenderFile(object):
 
         Int = NamedStruct('Int', self._fmt_strct('i'), 'val')
         Short = NamedStruct('Short', self._fmt_strct('h'), 'val')
-        BlendStructField = NamedStruct.from_namedtuple(BlenderFile.BlendStructField, self._fmt_strct('hh'))
-        BlendStruct = BlenderFile.BlendStruct
+        BlendStructFieldDNA = NamedStruct.from_namedtuple(BlenderFile.BlendStructFieldDNA, self._fmt_strct('hh'))
+        BlendStructDNA = BlenderFile.BlendStructDNA
 
         rewind_offset = self.handle.seek(0, 1)
         data = self.handle.read(head.size)
@@ -432,10 +484,10 @@ class BlenderFile(object):
             fields = []
             offset += 4
             for _ in range(field_count):
-                fields.append(BlendStructField.unpack_from(data, offset))
+                fields.append(BlendStructFieldDNA.unpack_from(data, offset))
                 offset += 4
             
-            structures.append(BlendStruct(index=structure_type_index, fields=tuple(fields)))
+            structures.append(BlendStructDNA(index=structure_type_index, fields=tuple(fields)))
 
         # Rewind the blend at the end of the block head
         self.handle.seek(rewind_offset, 0)
@@ -536,52 +588,46 @@ class BlenderFile(object):
     def close(self):
         self.handle.close()
 
-def compile_names(fields, base=''):
-    BlendHumanStruct = BlenderFile.BlendHumanStruct
-
-    names = []
-    for f in fields:
-        if isinstance(f.type, BlendHumanStruct):
-            names.extend(compile_names(f.type.fields, f.name+'.'))
-        else:
-            names.append(base+f.name)
-
-    return names
-    
-def compile_fmt(fields, ptr):
+def compile_fmt(fields):
     """
-        Compile a list of BlenderFile.BlendHumanStructField into a format string that can be passed
+        Compile a list of BlenderFile.BlendStructField into a format string that can be passed
         to a Struct objet
 
         Author: Gabriel Dube
     """
     base_types = _BASE_TYPES
-    BlendHumanStruct = BlenderFile.BlendHumanStruct
     fmt = ''
+    fmt_names = []
 
     for f in fields:
         t = f.type
+        count = str(f.count)
+        if f.count > 1:
+            name = (f.name+('_{}_{}'.format(i, count)) for i in range(f.count))
+        else:
+            name = (f.name,)
 
         # If type is a pointer
         if f.ptr:
-            fmt += (ptr*f.count)
+            fmt_names.extend(name)
+            fmt += count+'P'
             continue
-        
+
         # If type is a base type
         if t in base_types:
             # Strings
             if t == 'char' and f.count > 1:
-                t = str(f.count)+'s'
+                t = count+'s'
             else:
-                t = (base_types[t] * f.count)
+                t = count+base_types[t]
+            fmt_names.extend(name)
             fmt += t
             continue
 
         # If type is another structure
-        if isinstance(t, BlendHumanStruct):
-            fmt += compile_fmt(t.fields, ptr) * f.count
-            continue
+        fmt += (str(f.size)+'x')
+    
 
-    return fmt
+    return fmt, fmt_names
 
    
