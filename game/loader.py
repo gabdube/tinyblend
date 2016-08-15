@@ -12,7 +12,7 @@ from weakref import ref
 import re
 
 # List of base types found in blend fields and their struct char representation.
-_BASE_TYPES = {'float':'f', 'int':'i', 'short':'h', 'char':'c', 'uint64_t':'Q'}
+_BASE_TYPES = {'float':'f', 'double':'d', 'int':'i', 'short':'h', 'char':'c', 'uint64_t':'Q'}
 
 class BlenderFileException(Exception):
     """
@@ -67,6 +67,10 @@ class NamedStruct(object):
         return named_struct
 
     def unpack(self, data):
+        x, y = len(data), self.format.size
+        if (x > y) and (x % y == 0):
+            return list(self.iter_unpack(data))
+
         values = self.format.unpack(data)
         return self.names(*self.format.unpack(data))
 
@@ -107,7 +111,7 @@ class BlenderObject(object):
     CLASSES = None
 
     @staticmethod
-    def _set_simple_fields(names, data, obj):
+    def _set_fields(names, data, obj):
         """
             Unpack the base types (float, int, etc) from the raw data to the object
 
@@ -127,23 +131,18 @@ class BlenderObject(object):
                     arr.append(value)
                 setattr(obj, match[0][0], arr)
 
-    @staticmethod
-    def _set_complex_fields(file, data, classes, main):
-        """
-            Unpack structures from the raw data to the object
-        """
-        for cls, slice, name in classes:
-            obj = cls(file, data[slice])
-            setattr(main, name, obj)
 
     def __new__(cls, file, data):
         obj = super(BlenderObject, cls).__new__(cls)
         obj._file = file
 
-        BlenderObject._set_complex_fields(file, data, cls.CLASSES, obj)
+        # Unpack structures from the raw data to the object
+        for cls_, slice, name in cls.CLASSES:
+            obj_ = cls_(file, data[slice])
+            setattr(obj, name, obj_)
 
         try:
-            BlenderObject._set_simple_fields(cls.FMT.names._fields, cls.FMT.unpack(data), obj)
+            BlenderObject._set_fields(cls.FMT.names._fields, cls.FMT.unpack(data), obj)
         except StopIteration:
             pass
 
@@ -238,6 +237,7 @@ class BlenderObjectFactory(object):
         dnatypes = file.index.type_names
         self.has_name = 'ID' in (dnatypes[ftype] for ftype, fname in dnafields)
         self.object, self.dependencies = BlenderObjectFactory._build_objects(file, self.struct_dna)
+        self.object_name = file.index.type_names[self.struct_dna.index]
         
     def __len__(self):
         file = self.file
@@ -282,31 +282,14 @@ class BlenderObjectFactory(object):
         if not self.has_name:
             raise BlenderFileReadException('Object type do not have a name')
 
-        name = name.encode()
+        name_bytes = name.encode()
         for obj in self:
             _name = obj.id.name
-            if _name[2:_name.index(0)] == name:
+            if _name[2:_name.index(0)] == name_bytes:
                 return obj
 
-        raise KeyError('{} not found in file'.format(name))
+        raise KeyError('File do not have {} objects named \'{}\''.format(self.object_name, name))
 
-    def signature(self):
-        """
-            Return a representation of the struct.
-
-            author: Gabriel Dube
-        """
-        file = self.file
-
-        dna = self.struct_dna
-        field_names = file.index.field_names
-        type_names = file.index.type_names
-        
-        repr = type_names[dna.index] + '\n'
-        for ftype, fname in dna.fields:
-            repr += '|-- {} {}'.format(type_names[ftype], field_names[fname])+'\n'
-
-        return repr
 
 class BlenderFile(object):
     """
@@ -607,6 +590,36 @@ class BlenderFile(object):
 
     def close(self):
         self.handle.close()
+    def tree(self, type_name, recursive=True, max_level=999):
+        """
+            Return a representation of the struct. Useful when looking for attributes in a struct
+
+            author: Gabriel Dube
+        """
+        def field_lookup(struct, indent_level=0):
+            indent = '    '*indent_level
+            fields = ''
+            for ftype, fname in struct.fields:
+                type_name, field_name = type_names[ftype], field_names[fname]
+                fields += indent+'|-- {} {}'.format(type_name, field_name)+'\n'
+                if recursive and indent_level < max_level:
+                    if ftype in struct_indexes and not '*' in field_name:
+                        fields += field_lookup(self._struct_lookup(ftype), indent_level+1)
+
+            return fields
+
+
+        field_names = self.index.field_names
+        type_names = self.index.type_names
+        struct_indexes = [s.index for s in self.index.structures]
+        
+        type_index = type_names.index(type_name)
+        dna = self._struct_lookup(type_index)
+
+        repr = '{} ({})\n'.format(type_name, self.header.version)
+        repr += field_lookup(dna)
+
+        return repr
 
 def compile_fmt(fields):
     """

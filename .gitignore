@@ -2,3 +2,4 @@ assets
 .cache
 *.pyc
 launch.json
+scene_tree.txt

@@ -38,9 +38,16 @@ def test_should_read_scene_data():
     assert world.aodist > 12.8999 and world.aodist < 12.90001
     assert world.id.name[0:11] == b'WOTestWorld'    
 
-    
-    pytest.raises(BlenderFileReadException, blend.find, 'foos')
-    pytest.raises(KeyError, worlds.find_by_name, 'BOO')
+    scenes = blend.find('Scene')
+    assert len(scenes) == 1, 'Test blend should have one world'
+
+    # If Tinyblend can load a scene, it can load anything (see scene_tree.txt)
+    scene = scenes.find_by_name('MyTestScene')
+
+    rctfs = blend.find('rctf')
+    pytest.raises(BlenderFileReadException, rctfs.find_by_name, 'blah')  # rctf object do not have a name
+    pytest.raises(BlenderFileReadException, blend.find, 'foos')          # foos is not a valid structure
+    pytest.raises(KeyError, worlds.find_by_name, 'BOO')                  # There are no worlds by the name of BOO in the blend file
 
     blend.close()
 
