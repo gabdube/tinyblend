@@ -199,7 +199,7 @@ class BlenderObjectFactory(object):
         # If type was cached, use the cached version
         obj = (version_cache.get(name) or (lambda: None) )()
         if obj is not None:
-            return obj
+            return obj, obj.CLASSES
 
         # If type was not cached, create a new blender object type
         dependencies = []
@@ -272,21 +272,23 @@ class BlenderObjectFactory(object):
         
         return file
 
-    def find(self, name):
+    def find_by_name(self, name):
         """
             Find and build an object by name. If the object does not have a name,
             raise a BlenderFileReadException.
 
             author: Gabriel Dube
         """
-        file = self.file
         if not self.has_name:
             raise BlenderFileReadException('Object type do not have a name')
 
+        name = name.encode()
         for obj in self:
-            if obj.id.name[2:] == name:
+            _name = obj.id.name
+            if _name[2:_name.index(0)] == name:
                 return obj
 
+        raise KeyError('{} not found in file'.format(name))
 
     def signature(self):
         """
@@ -586,17 +588,14 @@ class BlenderFile(object):
         if BlenderObjectFactory.CACHE.get(header.version) is None:
             BlenderObjectFactory.CACHE[header.version] = {}
 
-    def __getattr__(self, _name):
+    def find(self, name):
         version = self.header.version
         factories = BlenderObjectFactory.CACHE.get(version)
 
-        # Format the name. Ex: scenes becomes Scene
-        name = _name[0:-1].capitalize()
-
         # If the factory was already created
-        fact = factories.get(name)
-        if fact is not None and fact() is not None:
-            return fact()
+        fact = (factories.get(name) or (lambda:None))()
+        if fact is not None:
+            return fact
 
         # Factory creation
         try:
@@ -604,7 +603,7 @@ class BlenderFile(object):
             factories[name] = ref(fact)
             return fact
         except ValueError:
-            raise BlenderFileReadException('Data type {} ({}) could not be found in the blend file'.format(_name, name))
+            raise BlenderFileReadException('Data type {} could not be found in the blend file'.format(name))
 
     def close(self):
         self.handle.close()

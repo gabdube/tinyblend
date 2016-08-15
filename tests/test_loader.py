@@ -26,18 +26,21 @@ def test_open_blend_file():
 def test_should_read_scene_data():
     blend = BlenderFile('tests/test1.blend')
 
-    worlds = blend.worlds
+    worlds = blend.find('World')
     assert worlds.file is blend, 'World file is not blend'
     assert len(worlds) == 1, 'Test blend should have one world'
 
-    first_world = next(iter(worlds))
-    assert first_world.file is blend
-    assert first_world.VERSION == blend.header.version
-    assert len(first_world.mtex) == 18
-    assert first_world.aodist > 12.8999 and first_world.aodist < 12.90001
-    assert first_world.id.name[0:11] == b'WOTestWorld'
+    world = worlds.find_by_name('TestWorld')
+    assert world.file is blend
+    assert isinstance(world, worlds.object)
+    assert world.VERSION == blend.header.version
+    assert len(world.mtex) == 18
+    assert world.aodist > 12.8999 and world.aodist < 12.90001
+    assert world.id.name[0:11] == b'WOTestWorld'    
 
-    pytest.raises(BlenderFileReadException, getattr, blend, 'foos')
+    
+    pytest.raises(BlenderFileReadException, blend.find, 'foos')
+    pytest.raises(KeyError, worlds.find_by_name, 'BOO')
 
     blend.close()
 
@@ -58,7 +61,7 @@ def test_blend_struct_lookup():
 
 def test_weakref():
     blend = BlenderFile('tests/test1.blend')
-    worlds = blend.worlds
+    worlds = blend.find('World')
     
     del blend
 
@@ -66,13 +69,13 @@ def test_weakref():
     pytest.raises(RuntimeError, len, worlds)
     pytest.raises(RuntimeError, repr, worlds)
     pytest.raises(RuntimeError, str, worlds)
-    pytest.raises(RuntimeError, worlds.find, '...')
+    pytest.raises(RuntimeError, worlds.find_by_name, '...')
 
 def test_cache_lookup():
     blend = BlenderFile('tests/test1.blend')
     v = blend.header.version
 
-    worlds = blend.worlds
+    worlds = blend.find('World')
 
     assert BlenderObjectFactory.CACHE[v]['World']() is not None
     assert BlenderObject.CACHE[v]['World']() is not None
@@ -83,7 +86,7 @@ def test_cache_lookup():
     assert BlenderObjectFactory.CACHE[v]['World']() is None
     assert BlenderObject.CACHE[v]['World']() is None
 
-    worlds = blend.worlds
+    worlds = blend.find('World')
     assert isinstance(worlds, BlenderObjectFactory)
     assert BlenderObjectFactory.CACHE[v]['World']() is not None
     assert BlenderObject.CACHE[v]['World']() is not None
