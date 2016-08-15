@@ -103,8 +103,16 @@ class BlenderObject(object):
     # Format Struct to unpack the raw data. Overriden in subclasses
     FMT = None
 
+    # List of (subclasses, offset) in the object. Overriden is subclasses 
+    CLASSES = None
+
     @staticmethod
-    def _import_local_data(names, data, obj):
+    def _set_simple_fields(names, data, obj):
+        """
+            Unpack the base types (float, int, etc) from the raw data to the object
+
+            author: Gabriel Dube
+        """
         template = re.compile('(.+)_\d+_(\d+)')
         gen = zip(names, data)
         while True:
@@ -120,17 +128,22 @@ class BlenderObject(object):
                 setattr(obj, match[0][0], arr)
 
     @staticmethod
-    def _import_nonlocal_data(obj):
-        pass
+    def _set_complex_fields(file, data, classes, main):
+        """
+            Unpack structures from the raw data to the object
+        """
+        for cls, slice, name in classes:
+            obj = cls(file, data[slice])
+            setattr(main, name, obj)
 
     def __new__(cls, file, data):
         obj = super(BlenderObject, cls).__new__(cls)
         obj._file = file
 
-        BlenderObject._import_nonlocal_data(obj)
+        BlenderObject._set_complex_fields(file, data, cls.CLASSES, obj)
 
         try:
-            BlenderObject._import_local_data(cls.FMT.names._fields, cls.FMT.unpack(data), obj)
+            BlenderObject._set_simple_fields(cls.FMT.names._fields, cls.FMT.unpack(data), obj)
         except StopIteration:
             pass
 
@@ -190,11 +203,15 @@ class BlenderObjectFactory(object):
 
         # If type was not cached, create a new blender object type
         dependencies = []
+        offset = 0
         name, fields = file._export_struct(struct)
         for f, dna in zip(fields, struct.fields):
             if f.type not in base_types and not f.ptr:
                 tmp_dna = file._struct_lookup(dna.index_type)
-                dependencies.append(BlenderObjectFactory._build_objects(file, tmp_dna)[0])
+                dep = (BlenderObjectFactory._build_objects(file, tmp_dna)[0], slice(offset, offset+f.size), f.name)
+                dependencies.append(dep)
+
+            offset += f.size
         
         fmt, fmt_names = compile_fmt(fields)
         fmt_names = namedtuple(name, fmt_names)
@@ -203,7 +220,7 @@ class BlenderObjectFactory(object):
         
 
         # Then build the object itself
-        obj = type(name, (BlenderObject,), {'VERSION':version, 'FMT': fmt})
+        obj = type(name, (BlenderObject,), {'VERSION':version, 'FMT': fmt, 'CLASSES': dependencies})
         version_cache[name] = ref(obj)
 
         return obj, tuple(dependencies)
@@ -391,6 +408,8 @@ class BlenderFile(object):
         type_names = self.index.type_names
         type_sizes = self.index.type_sizes
 
+        ptr_size = 8 if self.header.arch == BlenderFile.Arch.X64 else 4
+
         struct_name = type_names[struct.index]
         struct_fields = []
 
@@ -404,11 +423,13 @@ class BlenderFile(object):
 
             if is_ptr:
                 name = name[1::]
+                size = ptr_size
 
             if is_array:
                 x, y = name.index('['), name.index(']')
                 count = int(name[x+1:y])
                 name = name[0:x]
+                size *= count
             else:
                 count = 1
 
@@ -600,9 +621,8 @@ def compile_fmt(fields):
     fmt_names = []
 
     for f in fields:
-        t = f.type
-        count = str(f.count)
-        if f.count > 1:
+        t, count = f.type, str(f.count)
+        if f.count > 1 and t != 'char':
             name = (f.name+('_{}_{}'.format(i, count)) for i in range(f.count))
         else:
             name = (f.name,)

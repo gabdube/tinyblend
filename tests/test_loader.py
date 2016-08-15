@@ -35,6 +35,7 @@ def test_should_read_scene_data():
     assert first_world.VERSION == blend.header.version
     assert len(first_world.mtex) == 18
     assert first_world.aodist > 12.8999 and first_world.aodist < 12.90001
+    assert first_world.id.name[0:11] == b'WOTestWorld'
 
     pytest.raises(BlenderFileReadException, getattr, blend, 'foos')
 
