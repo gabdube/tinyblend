@@ -80,7 +80,7 @@ class NamedStruct(object):
     def iter_unpack(self, data):
         return (self.names(*d) for d in self.format.iter_unpack(data))
 
-class PointerLookup(object):
+class AddressLookup(object):
     """
         Descriptor that wraps get/set actions on pointer fields.
     """
@@ -98,11 +98,11 @@ class PointerLookup(object):
         if self.value is None:
             ptr = getattr(instance, self.name)
             if ptr != 0:
-                self.value = instance.file._from_pointer(ptr)
+                self.value = instance.file._from_address(ptr)
 
         return self.value
 
-    def __delete__(self, instance, cls):
+    def __delete__(self, instance):
         raise AttributeError('Attribute cannot be deleted')
 
 class BlenderObject(object):
@@ -317,26 +317,29 @@ class BlenderObjectFactory(object):
 
         # Add pointer lookup descriptor to the type attributes
         for f in (f for f in fields if f.ptr): 
-            class_attrs[f.name] = PointerLookup(f.name)
+            class_attrs[f.name] = AddressLookup(f.name)
 
         obj = type(name, (BlenderObject,), class_attrs)
         version_cache[name] = ref(obj)
 
         return obj, tuple(dependencies)
 
-    def __init__(self, file, struct_index):
+    def __init__(self, file, type_name_index):
         self._file = ref(file)
 
         for index, struct_dna in enumerate(file.index.structures):
-            if struct_dna.index == struct_index:
+            if struct_dna.index == type_name_index:
                 self.struct_dna = struct_dna
                 self.sdna_index = index
                 break
 
         dnafields = self.struct_dna.fields
         dnatypes = file.index.type_names
+
+        # A type has a name if it has a ID type (always the first parameter)
         self.has_name = 'ID' in (dnatypes[ftype] for ftype, fname in dnafields)
-        self.object, self.dependencies = BlenderObjectFactory._build_objects(file, self.struct_dna)
+
+        self.object, _ = BlenderObjectFactory._build_objects(file, self.struct_dna)
         self.object_name = file.index.type_names[self.struct_dna.index]
         
     def __len__(self):
@@ -420,7 +423,7 @@ class BlenderFile(object):
     BlendIndex           = namedtuple('BlendIndex', ('field_names', 'type_names', 'type_sizes', 'structures'))
 
     @staticmethod
-    def parse_header(header):
+    def _parse_header(header):
         """
             Parse the header of a blender file and return the formatted data in a BlendFileInfo object.
             The passed header must be valid.
@@ -658,18 +661,30 @@ class BlenderFile(object):
         data = handle.read(block.size)
         return data 
 
-    def _from_pointer(self, ptr):
+    def _from_address(self, ptr):
         """
             Extract data from its old memory address. This is used in pointer fields lookup.
+            If the pointer cannot be found raise a BlenderFileReadException
 
             Author: Gabriel Dube
         """
-        return None
+        block, offset  = None, None
+        for _block, _offset in self.blocks:
+            if _block.addr == ptr:
+                block, offset  = _block, _offset
+
+        if offset is None:
+            raise BlenderFileReadException('Cannot find the address {} in the blend file'.format(hex(ptr)))
+
+        struct = self.index.structures[block.sdna]
+        block_data = self._read_block(block, offset)
+        obj, _ = BlenderObjectFactory._build_objects(self, struct)
+        return obj(ref(self), block_data)
 
     def __init__(self, blend_file_name):
         handle = open('./assets/'+blend_file_name, 'rb')
 
-        header = BlenderFile.parse_header(handle.read(12))
+        header = BlenderFile._parse_header(handle.read(12))
         if header is None:
             raise BlenderFileImportException('Bad file header')
 

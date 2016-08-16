@@ -58,8 +58,6 @@ def test_equality():
     world2 = worlds.find_by_name('TestWorld')
 
     assert id(world1) is not id(world2)
-    print(dir(world1))
-    print(blend.tree('World'))
     assert world1 == world2
 
 def test_should_lookup_pointer():
@@ -71,8 +69,15 @@ def test_should_lookup_pointer():
     world = worlds.find_by_name('TestWorld')
     scene = scenes.find_by_name('MyTestScene')
 
-    #assert type(scene.world) is worlds.object
-    #assert scene.world == world
+    pytest.raises(BlenderFileReadException, blend._from_address, 0)
+    pytest.raises(AttributeError, setattr, scene, 'world', 0)
+    pytest.raises(AttributeError, delattr, scene, 'world')
+
+    scene_world = scene.world
+    assert type(scene_world) is worlds.object
+    assert scene_world is not world
+    assert scene.world == world
+    assert scene.world is scene_world
 
 def test_blend_struct_lookup():
     blend = BlenderFile('tests/test1.blend')
