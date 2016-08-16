@@ -10,11 +10,10 @@ sys.path.append(dn(dn(__file__)))
 
 
 import pytest, gc
-from game import BlenderFile, BlenderFileImportException, BlenderFileReadException
-from game.loader import BlenderObjectFactory, BlenderObject
+from tinyblend import BlenderFile, BlenderObjectFactory, BlenderObject, BlenderFileImportException, BlenderFileReadException
 
 def test_open_blend_file():
-    blend = BlenderFile('tests/test1.blend')
+    blend = BlenderFile('fixtures/test1.blend')
 
     head = blend.header
     assert 'VersionInfo(major=2, minor=7, rev=7)', repr(head.version)
@@ -24,7 +23,7 @@ def test_open_blend_file():
     blend.close()
 
 def test_should_read_scene_data():
-    blend = BlenderFile('tests/test1.blend')
+    blend = BlenderFile('fixtures/test1.blend')
 
     worlds = blend.find('World')
     assert worlds.file is blend, 'World file is not blend'
@@ -50,7 +49,7 @@ def test_should_read_scene_data():
 
 
 def test_equality():
-    blend = BlenderFile('tests/test1.blend')
+    blend = BlenderFile('fixtures/test1.blend')
 
     worlds = blend.find('World')
 
@@ -61,7 +60,7 @@ def test_equality():
     assert world1 == world2
 
 def test_should_lookup_pointer():
-    blend = BlenderFile('tests/test1.blend')
+    blend = BlenderFile('fixtures/test1.blend')
 
     worlds = blend.find('World')
     scenes = blend.find('Scene')
@@ -80,7 +79,7 @@ def test_should_lookup_pointer():
     assert scene.world is scene_world
 
 def test_blend_struct_lookup():
-    blend = BlenderFile('tests/test1.blend')
+    blend = BlenderFile('fixtures/test1.blend')
 
     scene_index = blend.index.type_names.index('Scene')
     float_index = blend.index.type_names.index('float')
@@ -95,7 +94,7 @@ def test_blend_struct_lookup():
     blend.close()
 
 def test_weakref():
-    blend = BlenderFile('tests/test1.blend')
+    blend = BlenderFile('fixtures/test1.blend')
     worlds = blend.find('World')
     
     del blend
@@ -107,7 +106,7 @@ def test_weakref():
     pytest.raises(RuntimeError, worlds.find_by_name, '...')
 
 def test_cache_lookup():
-    blend = BlenderFile('tests/test1.blend')
+    blend = BlenderFile('fixtures/test1.blend')
     v = blend.header.version
 
     worlds = blend.find('World')
@@ -129,5 +128,5 @@ def test_cache_lookup():
     blend.close()
 
 def test_open_bad_blend_file():
-    pytest.raises(BlenderFileImportException, BlenderFile, 'tests/test2.blend')
-    pytest.raises(BlenderFileImportException, BlenderFile, 'tests/test3.blend')
+    pytest.raises(BlenderFileImportException, BlenderFile, 'fixtures/test2.blend')
+    pytest.raises(BlenderFileImportException, BlenderFile, 'fixtures/test3.blend')

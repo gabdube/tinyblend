@@ -698,7 +698,7 @@ class BlenderFile(object):
         return obj(ref(self), block_data)
 
     def __init__(self, blend_file_name):
-        handle = open('./assets/'+blend_file_name, 'rb')
+        handle = open(blend_file_name, 'rb')
 
         header = BlenderFile._parse_header(handle.read(12))
         if header is None:
