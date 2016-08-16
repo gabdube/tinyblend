@@ -84,8 +84,26 @@ class PointerLookup(object):
     """
         Descriptor that wraps get/set actions on pointer fields.
     """
+    __slots__ = ['name', 'value']
 
+    def __init__(self, name):
+        # ptr is the suffix given to all pointer fields in compile_fmt
+        self.name = 'ptr_'+name
+        self.value = None
 
+    def __set__(self, instance, value):
+        raise AttributeError('Attribute cannot be setted')
+
+    def __get__(self, instance, cls):
+        if self.value is None:
+            ptr = getattr(instance, self.name)
+            if ptr != 0:
+                self.value = instance.file._from_pointer(ptr)
+
+        return self.value
+
+    def __delete__(self, instance, cls):
+        raise AttributeError('Attribute cannot be deleted')
 
 class BlenderObject(object):
     """
@@ -202,6 +220,50 @@ class BlenderObjectFactory(object):
     CACHE = {}
 
     @staticmethod
+    def compile_fmt(fields):
+        """
+            Compile a list of BlenderFile.BlendStructField into a format string that can be passed
+            to a Struct objet
+
+            Author: Gabriel Dube
+        """
+        base_types = _BASE_TYPES
+        fmt = ''
+        fmt_names = []
+
+        for f in fields:
+            t, count = f.type, str(f.count)
+            if f.count > 1 and t != 'char':
+                # A unique name must be generated for every item in an array that is not composed of chars
+                # This is translated to a python list when the blender types is instanciated
+                name = (f.name+('_{}_{}'.format(i, count)) for i in range(f.count))
+            else:
+                name = (f.name,)
+
+            # If type is a pointer
+            if f.ptr:
+                fmt_names.extend(('ptr_'+n for n in name))
+                fmt += count+'P'
+                continue
+
+            # If type is a base type
+            if t in base_types:
+                # Strings
+                if t == 'char' and f.count > 1:
+                    t = count+'s'
+                else:
+                    t = count+base_types[t]
+                fmt_names.extend(name)
+                fmt += t
+                continue
+
+            # If type is another structure
+            fmt += (str(f.size)+'x')
+        
+
+        return fmt, fmt_names
+
+    @staticmethod
     def _build_objects(file, struct):
         """
             Create the blender object for the factory.
@@ -230,7 +292,12 @@ class BlenderObjectFactory(object):
         # If type was not cached, create a new blender object type
         dependencies = []
         offset = 0
+        
+        # 1. Parse the raw fields data
         name, fields = file._export_struct(struct)
+        
+        # 2. Extract other blender objects types contained in this object (pointer fields types are ignored)
+        #    The dependency contains the type, a slice to extract the child data from the parent data and the name to be used in the parent object
         for f, dna in zip(fields, struct.fields):
             if f.type not in base_types and not f.ptr:
                 tmp_dna = file._struct_lookup(dna.index_type)
@@ -239,14 +306,20 @@ class BlenderObjectFactory(object):
 
             offset += f.size
         
-        fmt, fmt_names = compile_fmt(fields)
+        # 3. Compile a format string from the extracted fields and build a namedstruct to extract the raw data. See the BlenderObject constructor.
+        fmt, fmt_names = BlenderObjectFactory.compile_fmt(fields)
         fmt_names = namedtuple(name, fmt_names)
         fmt = (endian.value)+fmt.replace('P', arch.value)
         fmt = NamedStruct.from_namedtuple(fmt_names, fmt)
         
+        # 4. Then build the type itself
+        class_attrs = {'VERSION':version, 'FMT': fmt, 'CLASSES': dependencies}
 
-        # Then build the object itself
-        obj = type(name, (BlenderObject,), {'VERSION':version, 'FMT': fmt, 'CLASSES': dependencies})
+        # Add pointer lookup descriptor to the type attributes
+        for f in (f for f in fields if f.ptr): 
+            class_attrs[f.name] = PointerLookup(f.name)
+
+        obj = type(name, (BlenderObject,), class_attrs)
         version_cache[name] = ref(obj)
 
         return obj, tuple(dependencies)
@@ -542,6 +615,7 @@ class BlenderFile(object):
         """
         handle = self.handle
         BlendBlockHeader = NamedStruct.from_namedtuple(BlenderFile.BlendBlockHeader, self._fmt_strct('4siPii'))
+        header_block_size = BlendBlockHeader.format.size
 
         # Get the blend file size
         end = handle.seek(0, 2)
@@ -551,7 +625,7 @@ class BlenderFile(object):
         end_found = False
         file_block_heads = []
         while end != handle.seek(0, 1) and not end_found:
-            buf = handle.read(BlendBlockHeader.format.size)
+            buf = handle.read(header_block_size)
             file_block_head = BlendBlockHeader.unpack(buf)
             
             # DNA1 indicates the index block of the blend file
@@ -563,7 +637,7 @@ class BlenderFile(object):
             else:
                 file_block_heads.append((file_block_head, handle.seek(0, 1)))
 
-            handle.read(file_block_head.size)
+            handle.seek(file_block_head.size, 1)
         
         if blend_index is None:
             raise BlenderFileImportException('Could not find blend file index')
@@ -584,6 +658,14 @@ class BlenderFile(object):
         data = handle.read(block.size)
         return data 
 
+    def _from_pointer(self, ptr):
+        """
+            Extract data from its old memory address. This is used in pointer fields lookup.
+
+            Author: Gabriel Dube
+        """
+        return None
+
     def __init__(self, blend_file_name):
         handle = open('./assets/'+blend_file_name, 'rb')
 
@@ -598,25 +680,32 @@ class BlenderFile(object):
         if BlenderObjectFactory.CACHE.get(header.version) is None:
             BlenderObjectFactory.CACHE[header.version] = {}
 
-    def find(self, name):
+    def find(self, factory_name):
+        """
+            Creates or get a cached version of a blender type factory. A BlenderObjectFactory
+            offers a pythonic interface to read blend file data of a certain type. For more information see BlenderObjectFactory
+
+            Arguments:
+                factory_name: Name of the data type to load. Ex: 'Scene'
+
+            author: Gabriel Dube
+        """
         version = self.header.version
         factories = BlenderObjectFactory.CACHE.get(version)
 
         # If the factory was already created
-        fact = (factories.get(name) or (lambda:None))()
+        fact = (factories.get(factory_name) or (lambda:None))()
         if fact is not None:
             return fact
 
         # Factory creation
         try:
-            fact = BlenderObjectFactory(self, self.index.type_names.index(name))
-            factories[name] = ref(fact)
+            fact = BlenderObjectFactory(self, self.index.type_names.index(factory_name))
+            factories[factory_name] = ref(fact)
             return fact
         except ValueError:
-            raise BlenderFileReadException('Data type {} could not be found in the blend file'.format(name))
+            raise BlenderFileReadException('Data type {} could not be found in the blend file'.format(factory_name))
 
-    def close(self):
-        self.handle.close()
     def tree(self, type_name, recursive=True, max_level=999):
         """
             Return a representation of the struct. Useful when looking for attributes in a struct
@@ -648,45 +737,5 @@ class BlenderFile(object):
 
         return repr
 
-def compile_fmt(fields):
-    """
-        Compile a list of BlenderFile.BlendStructField into a format string that can be passed
-        to a Struct objet
-
-        Author: Gabriel Dube
-    """
-    base_types = _BASE_TYPES
-    fmt = ''
-    fmt_names = []
-
-    for f in fields:
-        t, count = f.type, str(f.count)
-        if f.count > 1 and t != 'char':
-            name = (f.name+('_{}_{}'.format(i, count)) for i in range(f.count))
-        else:
-            name = (f.name,)
-
-        # If type is a pointer
-        if f.ptr:
-            fmt_names.extend(name)
-            fmt += count+'P'
-            continue
-
-        # If type is a base type
-        if t in base_types:
-            # Strings
-            if t == 'char' and f.count > 1:
-                t = count+'s'
-            else:
-                t = count+base_types[t]
-            fmt_names.extend(name)
-            fmt += t
-            continue
-
-        # If type is another structure
-        fmt += (str(f.size)+'x')
-    
-
-    return fmt, fmt_names
-
-   
+    def close(self):
+        self.handle.close()
