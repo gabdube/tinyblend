@@ -41,15 +41,38 @@ def test_should_read_scene_data():
     scenes = blend.find('Scene')
     assert len(scenes) == 1, 'Test blend should have one world'
 
-    # If Tinyblend can load a scene, it can load anything (see scene_tree.txt)
-    scene = scenes.find_by_name('MyTestScene')
-
     rctfs = blend.find('rctf')
     pytest.raises(BlenderFileReadException, rctfs.find_by_name, 'blah')  # rctf object do not have a name
     pytest.raises(BlenderFileReadException, blend.find, 'foos')          # foos is not a valid structure
     pytest.raises(KeyError, worlds.find_by_name, 'BOO')                  # There are no worlds by the name of BOO in the blend file
 
     blend.close()
+
+
+def test_equality():
+    blend = BlenderFile('tests/test1.blend')
+
+    worlds = blend.find('World')
+
+    world1 = worlds.find_by_name('TestWorld')
+    world2 = worlds.find_by_name('TestWorld')
+
+    assert id(world1) is not id(world2)
+    print(dir(world1))
+    print(blend.tree('World'))
+    assert world1 == world2
+
+def test_should_lookup_pointer():
+    blend = BlenderFile('tests/test1.blend')
+
+    worlds = blend.find('World')
+    scenes = blend.find('Scene')
+
+    world = worlds.find_by_name('TestWorld')
+    scene = scenes.find_by_name('MyTestScene')
+
+    assert type(scene.world) is worlds.object
+    assert scene.world == world
 
 def test_blend_struct_lookup():
     blend = BlenderFile('tests/test1.blend')

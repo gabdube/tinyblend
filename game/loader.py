@@ -80,6 +80,12 @@ class NamedStruct(object):
     def iter_unpack(self, data):
         return (self.names(*d) for d in self.format.iter_unpack(data))
 
+class PointerLookup(object):
+    """
+        Descriptor that wraps get/set actions on pointer fields.
+    """
+
+
 
 class BlenderObject(object):
     """
@@ -125,11 +131,12 @@ class BlenderObject(object):
             if len(match) == 0:
                 setattr(obj, name, value)
             else:
-                arr = []
-                for i in range(int(match[0][1])):
+                field_name, array_len = match[0]
+                arr = [value]
+                for i in range(int(array_len)-1):
                     _, value = gen.__next__()
                     arr.append(value)
-                setattr(obj, match[0][0], arr)
+                setattr(obj, field_name, arr)
 
 
     def __new__(cls, file, data):
@@ -147,6 +154,26 @@ class BlenderObject(object):
             pass
 
         return obj
+
+    def __eq__(self, other):
+        if type(other) is not type(self):
+            return False
+
+        eq = False
+        template = re.compile('(.+)_\d+_(\d+)')
+        name_iter = iter(self.FMT.names._fields)
+        for name in name_iter:
+            match = template.findall(name)
+            if len(match) == 0:
+                eq |= getattr(self, name) == getattr(other, name)
+            else:
+                field_name, array_len = match[0]
+                eq |= getattr(self, field_name) == getattr(other, field_name)
+
+                # Skip the following names in the array
+                [next(name_iter) for i in range(int(array_len)-1)]
+
+        return eq
 
     @property
     def file(self):
