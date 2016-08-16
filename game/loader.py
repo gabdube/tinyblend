@@ -1,6 +1,22 @@
 # -*- coding: utf-8 -*-
 """
-Assets loader for the blender file format (.blend)
+Assets loader for the blender file format (.blend).
+
+Usage:
+
+```python
+from tinyblend import BlendFile
+
+blend_file = BlendFile('myblend.blend')
+scenes = blend_file.find('Scene')
+
+for scene in scenes:
+    print(scene.id.name)
+
+# Dont know the fields names of a certain blender struct, no problem:
+print(blend_file.tree('World'))
+
+```
 
 Author: Gabriel Dube
 """
