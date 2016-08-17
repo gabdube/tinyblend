@@ -3,3 +3,4 @@ assets
 *.pyc
 launch.json
 scene_tree.txt
+*.blend~

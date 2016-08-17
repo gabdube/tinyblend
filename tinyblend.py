@@ -337,6 +337,9 @@ class BlenderObjectFactory(object):
         for f in (f for f in fields if f.ptr): 
             class_attrs[f.name] = AddressLookup(f.name)
 
+        print('Struct size: {}'.format(file.index.type_sizes[struct.index]))
+        print('Format size: {}'.format(fmt.format.size) )
+
         obj = type(name, (BlenderObject,), class_attrs)
         version_cache[name] = ref(obj)
 
@@ -519,6 +522,8 @@ class BlenderFile(object):
         struct_name = type_names[struct.index]
         struct_fields = []
 
+        array_template = re.compile('\[(\d+)\]')
+
         for ftype, fname in struct.fields:
             name = field_names[fname]
             _type = type_names[ftype]
@@ -528,13 +533,14 @@ class BlenderFile(object):
             is_array = name[-1] == ']'
 
             if is_ptr:
-                name = name[1::]
+                name = name.lstrip('*')
                 size = ptr_size
 
             if is_array:
-                x, y = name.index('['), name.index(']')
-                count = int(name[x+1:y])
-                name = name[0:x]
+                count = 1
+                for v in array_template.findall(name):
+                    count *= int(v)
+                name = name[0:name.index('[')]
                 size *= count
             else:
                 count = 1
