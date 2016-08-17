@@ -33,12 +33,12 @@ def test_should_read_scene_data():
     assert world.file is blend
     assert isinstance(world, worlds.object)
     assert world.VERSION == blend.header.version
-    #assert len(world.mtex) == 18
+    assert len(world.mtex) == 18
     assert world.aodist > 12.8999 and world.aodist < 12.90001
     assert world.id.name[0:11] == b'WOTestWorld'    
 
     scenes = blend.find('Scene')
-    assert len(scenes) == 1, 'Test blend should have one world'
+    assert len(scenes) == 1, 'Test blend should have one scene'
 
     rctfs = blend.find('rctf')
     pytest.raises(BlenderFileReadException, rctfs.find_by_name, 'blah')  # rctf object do not have a name
@@ -77,6 +77,7 @@ def test_should_lookup_pointer():
     assert scene_world is not world
     assert scene.world == world
     assert scene.world is scene_world
+    assert scene.id.next is None         # Null pointer lookup returns None
 
 def test_blend_struct_lookup():
     blend = BlenderFile('fixtures/test1.blend')

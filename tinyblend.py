@@ -85,7 +85,7 @@ class NamedStruct(object):
     def unpack(self, data):
         x, y = len(data), self.format.size
         if (x > y) and (x % y == 0):
-            return list(self.iter_unpack(data))
+            return tuple(self.iter_unpack(data))
 
         values = self.format.unpack(data)
         return self.names(*self.format.unpack(data))
@@ -113,8 +113,10 @@ class AddressLookup(object):
     def __get__(self, instance, cls):
         if self.value is None:
             ptr = getattr(instance, self.name)
-            if ptr != 0:
+            if type(ptr) is int and ptr != 0:
                 self.value = instance.file._from_address(ptr)
+            elif type(ptr) is tuple:
+                self.value = instance.file._from_addresses(ptr)
 
         return self.value
 
@@ -170,7 +172,7 @@ class BlenderObject(object):
                 for i in range(int(array_len)-1):
                     _, value = gen.__next__()
                     arr.append(value)
-                setattr(obj, field_name, arr)
+                setattr(obj, field_name, tuple(arr))
 
 
     def __new__(cls, file, data):
@@ -696,6 +698,9 @@ class BlenderFile(object):
         block_data = self._read_block(block, offset)
         obj, _ = BlenderObjectFactory._build_objects(self, struct)
         return obj(ref(self), block_data)
+
+    def _from_addresses(self, ptr_list):
+        return [self._from_address(ptr) if ptr != 0 else None for ptr in ptr_list]
 
     def __init__(self, blend_file_name):
         handle = open(blend_file_name, 'rb')
