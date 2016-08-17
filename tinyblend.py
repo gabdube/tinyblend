@@ -337,9 +337,6 @@ class BlenderObjectFactory(object):
         for f in (f for f in fields if f.ptr): 
             class_attrs[f.name] = AddressLookup(f.name)
 
-        print('Struct size: {}'.format(file.index.type_sizes[struct.index]))
-        print('Format size: {}'.format(fmt.format.size) )
-
         obj = type(name, (BlenderObject,), class_attrs)
         version_cache[name] = ref(obj)
 
