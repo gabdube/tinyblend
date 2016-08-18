@@ -15,7 +15,7 @@ from pyglet import app
 import tinyblend as blend
 import pyshaders as shaders
 from pyglbuffers import Buffer
-from matmath import Mat4, translate, perspective
+from matmath import Mat4, translate, perspective, rotate
 
 # Load the bindings in order to operate more easily with pyglbuffers
 shaders.load_extension('pyglbuffers_bindings')
@@ -41,13 +41,11 @@ class Game(Window):
         self.proj = Mat4()
 
         self.zoom = -2.5
+        self.rotation = [0,0,0]
         self.view.set_data(translate(None, (0,0,self.zoom)))
         self.proj.set_data(perspective(60.0, 800/600, 0.1, 256.0))
         self.upload_uniforms()
-
-        # States
-        self.mouse_states = {mouse.LEFT: None}
-
+        
         # Scene creation
         self.setup_scene()
 
@@ -59,13 +57,18 @@ class Game(Window):
         triangle = Buffer.array('(3f)[position](3f)[color]', GL_STATIC_DRAW)
         data =( (( 1.0, -1.0, 0.0), (1.0, 0.0, 0.0)),
                 ((-1.0, -1.0, 0.0), (0.0, 1.0, 0.0)),
-                (( 0.0,  1.0, 0.0), (0.0, 1.0, 1.0)) )
+                (( 0.0,  1.0, 0.0), (0.0, 0.0, 1.0)) )
         triangle.init(data)
 
         self.tri = triangle
 
     def upload_uniforms(self):
         " Upload the uniforms to the shader " 
+
+        self.view.set_data(translate(None, (0,0,self.zoom)))
+        mod_mat = rotate(None, self.rotation[0], (1.0, 0.0, 0.0))
+        mod_mat = rotate(mod_mat, self.rotation[1], (0.0, 1.0, 0.0))
+        self.model.set_data(rotate(mod_mat, self.rotation[2], (0.0, 0.0, 1.0)))
 
         uni = self.shader.uniforms
         uni.view = self.view.data()
@@ -79,20 +82,13 @@ class Game(Window):
 
     def on_mouse_scroll(self, x, y, scroll_x, scroll_y):
         self.zoom -= 0.3*scroll_y
-        self.view.set_data(translate(None, (0,0,self.zoom)))
         self.upload_uniforms()
-
-    def on_mouse_press(self, x, y, button, modifiers):
-        self.mouse_states[button] = (x, y)
-
-    def on_mouse_release(self, x, y, button, modifiers):
-        self.mouse_states[button] = None
 
     def on_mouse_drag(self, x, y, dx, dy, buttons, modifiers):
         if buttons & mouse.LEFT != 0:
-            pass
-        elif buttons & mouse.LEFT != 0:
-            pass
+            self.rotation[0] += dy * 1.25
+            self.rotation[1] += dx * 1.25
+            self.upload_uniforms()
 
     def on_draw(self):
         # Clear the window
@@ -102,9 +98,6 @@ class Game(Window):
         self.shader.map_attributes(self.tri)
         glDrawArrays(GL_TRIANGLES, 0, len(self.tri))
     
-        # Draw the scene 
-        #self.tri.draw(GL_TRIANGLES)
-
 def main():
     game = Game()
     app.run()
