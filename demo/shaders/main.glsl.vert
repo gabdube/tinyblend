@@ -12,6 +12,6 @@ uniform mat4 proj;
 
 void main() 
 {
-	vert_color = inColor;
-	gl_Position = proj * view * model * vec4(inPos.xyz, 1.0);
+	vert_color = color;
+	gl_Position = proj * view * model * vec4(position.xyz, 1.0);
 }

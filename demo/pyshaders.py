@@ -123,15 +123,15 @@ UNIFORMS_DATA = {
   GL_INT_VEC2: (GLint, 2, glUniform2iv),
   GL_INT_VEC3: (GLint, 3, glUniform3iv),
   GL_INT_VEC4: (GLint, 4, glUniform4iv),
-  GL_FLOAT_MAT2: (GLfloat, 4, lambda x,y,z: glUniformMatrix2fv(x,y,True,z),      (2,2)),
-  GL_FLOAT_MAT3: (GLfloat, 9, lambda x,y,z: glUniformMatrix3fv(x,y,True,z),      (3,3)),
+  GL_FLOAT_MAT2: (GLfloat, 4, lambda x,y,z: glUniformMatrix2fv(x,y,False,z),      (2,2)),
+  GL_FLOAT_MAT3: (GLfloat, 9, lambda x,y,z: glUniformMatrix3fv(x,y,False,z),      (3,3)),
   GL_FLOAT_MAT4: (GLfloat, 16, lambda x,y,z: glUniformMatrix4fv(x,y,False,z),     (4,4)),
-  GL_FLOAT_MAT2x3: (GLfloat, 6, lambda x,y,z: glUniformMatrix2x3fv(x,y,True,z),  (2,3)),
-  GL_FLOAT_MAT2x4: (GLfloat, 8, lambda x,y,z: glUniformMatrix2x4fv(x,y,True,z),  (2,4)),
-  GL_FLOAT_MAT3x2: (GLfloat, 6, lambda x,y,z: glUniformMatrix3x2fv(x,y,True,z),  (3,2)),
-  GL_FLOAT_MAT3x4: (GLfloat, 12, lambda x,y,z: glUniformMatrix3x4fv(x,y,True,z), (3,4)),
-  GL_FLOAT_MAT4x2: (GLfloat, 8, lambda x,y,z: glUniformMatrix4x2fv(x,y,True,z),  (4,2)),
-  GL_FLOAT_MAT4x3: (GLfloat, 12, lambda x,y,z: glUniformMatrix4x3fv(x,y,True,z), (4,3)),
+  GL_FLOAT_MAT2x3: (GLfloat, 6, lambda x,y,z: glUniformMatrix2x3fv(x,y,False,z),  (2,3)),
+  GL_FLOAT_MAT2x4: (GLfloat, 8, lambda x,y,z: glUniformMatrix2x4fv(x,y,False,z),  (2,4)),
+  GL_FLOAT_MAT3x2: (GLfloat, 6, lambda x,y,z: glUniformMatrix3x2fv(x,y,False,z),  (3,2)),
+  GL_FLOAT_MAT3x4: (GLfloat, 12, lambda x,y,z: glUniformMatrix3x4fv(x,y,False,z), (3,4)),
+  GL_FLOAT_MAT4x2: (GLfloat, 8, lambda x,y,z: glUniformMatrix4x2fv(x,y,False,z),  (4,2)),
+  GL_FLOAT_MAT4x3: (GLfloat, 12, lambda x,y,z: glUniformMatrix4x3fv(x,y,False,z), (4,3)),
 } 
 
 UNPACK_ARRAY = [GL_FLOAT, GL_INT]
