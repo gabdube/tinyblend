@@ -6,8 +6,8 @@ import sys
 from os.path import dirname as dn, abspath
 sys.path.append(dn(dn(abspath(__file__))))
 
-from pyglet.gl import GL_TRIANGLES, GL_FLOAT, GL_STATIC_DRAW
-from pyglet.gl import glDrawArrays
+from pyglet.gl import GL_TRIANGLES, GL_LINES, GL_FLOAT, GL_STATIC_DRAW, GL_UNSIGNED_SHORT
+from pyglet.gl import glDrawElements, glClearColor
 from pyglet.graphics import vertex_list
 from pyglet.window import Window, mouse
 from pyglet import app
@@ -41,7 +41,7 @@ class Game(Window):
         self.proj = Mat4()
 
         self.rotation = [0,0,0]
-        self.position = [0,0, -2.5]
+        self.position = [0,0,-2.5]
         self.proj.set_data(perspective(60.0, 800/600, 0.1, 256.0))
         self.upload_uniforms()
 
@@ -53,17 +53,32 @@ class Game(Window):
 
     def setup_scene(self):
         " Load the assets in the scene "
-        triangle = Buffer.array('(3f)[position](3f)[color]', GL_STATIC_DRAW)
-        data =( (( 1.0, -1.0, 0.0), (1.0, 0.0, 0.0)),
-                ((-1.0, -1.0, 0.0), (0.0, 1.0, 0.0)),
-                (( 0.0,  1.0, 0.0), (0.0, 0.0, 1.0)) )
-        triangle.init(data)
 
-        self.tri = triangle
+        # Get the suzanne object from the blend file
+        objects = self.assets.find('Object')
+        bsuzanne = objects.find_by_name('Suzanne')
+
+        # Get the vertices data of the suzanne object
+        suz_data = bsuzanne.data
+        vertices = []
+        indices = []
+        for v in suz_data.mvert:
+            vertices.append(v.co)
+
+        for edge in suz_data.medge:
+            indices.extend(((edge.v1,), (edge.v2,)))
+
+        # Pack the vertices data of the suzanne object to be used by opengl
+        suzanne = Buffer.array('(3f)[position]', GL_STATIC_DRAW)
+        suzanne_indices = Buffer.element('(1S)[elem]', GL_STATIC_DRAW)
+        suzanne.init(vertices)
+        suzanne_indices.init(indices)
+        self.suzanne = (suzanne, suzanne_indices, len(suzanne_indices))
+
+        # Set the background color
+        glClearColor(0.1, 0.1, 0.1, 1.0)
 
     def upload_uniforms(self):
-        " Upload the uniforms to the shader " 
-
         self.view.set_data(translate(None, tuple(self.position) ))
 
         mod_mat = rotate(None, self.rotation[0], (1.0, 0.0, 0.0))
@@ -98,9 +113,11 @@ class Game(Window):
         # Clear the window
         self.clear()
 
-        self.tri.bind()
-        self.shader.map_attributes(self.tri)
-        glDrawArrays(GL_TRIANGLES, 0, len(self.tri))
+        # Draw the mesh
+        suz, suz_indices, suz_len = self.suzanne
+        suz.bind()
+        self.shader.map_attributes(suz)
+        glDrawElements(GL_LINES, suz_len, GL_UNSIGNED_SHORT, 0)
     
 def main():
     game = Game()

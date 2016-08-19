@@ -219,6 +219,9 @@ class BlenderObject(object):
         
         return file
 
+    def tree(self, recursive=True, max_level=999):
+        return self.file.tree(type(self).__name__, recursive, max_level)
+
 class BlenderObjectFactory(object):
     """
         Object that reads blender structures from datablocks. A BlenderObjectFactory
@@ -700,7 +703,12 @@ class BlenderFile(object):
         struct = self.index.structures[block.sdna]
         block_data = self._read_block(block, offset)
         obj, _ = BlenderObjectFactory._build_objects(self, struct)
-        return obj(ref(self), block_data)
+        if block.count == 1:
+            return obj(ref(self), block_data)
+        else:
+            ref_self = ref(self)
+            step = obj.FMT.format.size
+            return tuple([obj(ref_self, block_data[x:x+step]) for x in range(0, block.size, step) ])
 
     def _from_addresses(self, ptr_list):
         return [self._from_address(ptr) if ptr != 0 else None for ptr in ptr_list]
