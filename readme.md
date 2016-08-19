@@ -2,7 +2,7 @@
 
 Tinyblend is a very small and lazy library that reads [Blender](https://www.blender.org/) file data (.blend).  
 Tinyblend was tested on Linux and Windows and on Blender 2.77, but it should work on any OS and any blender version.  
-Tinyblend **does not** support writing blender files.  
+Tinyblend **does not** support writing blender files and **does not** support reading compressed files.  
 
 Running the test suite requires [pytest](http://doc.pytest.org/en/latest/)
 
