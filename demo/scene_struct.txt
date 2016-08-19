@@ -1,0 +1,462 @@
+Scene (VersionInfo(major=2, minor=7, rev=7))
+|-- ID id
+    |-- void *next
+    |-- void *prev
+    |-- ID *newid
+    |-- Library *lib
+    |-- char name[66]
+    |-- short flag
+    |-- short tag
+    |-- short pad_s1
+    |-- int us
+    |-- int icon_id
+    |-- IDProperty *properties
+|-- AnimData *adt
+|-- Object *camera
+|-- World *world
+|-- Scene *set
+|-- ListBase base
+    |-- void *first
+    |-- void *last
+|-- Base *basact
+|-- Object *obedit
+|-- float cursor[3]
+|-- float twcent[3]
+|-- float twmin[3]
+|-- float twmax[3]
+|-- int lay
+|-- int layact
+|-- int lay_updated
+|-- short flag
+|-- char use_nodes
+|-- char pad[1]
+|-- bNodeTree *nodetree
+|-- Editing *ed
+|-- ToolSettings *toolsettings
+|-- SceneStats *stats
+|-- DisplaySafeAreas safe_areas
+    |-- float title[2]
+    |-- float action[2]
+    |-- float title_center[2]
+    |-- float action_center[2]
+|-- RenderData r
+    |-- ImageFormatData im_format
+        |-- char imtype
+        |-- char depth
+        |-- char planes
+        |-- char flag
+        |-- char quality
+        |-- char compress
+        |-- char exr_codec
+        |-- char cineon_flag
+        |-- short cineon_white
+        |-- short cineon_black
+        |-- float cineon_gamma
+        |-- char jp2_flag
+        |-- char jp2_codec
+        |-- char tiff_codec
+        |-- char pad[4]
+        |-- char views_format
+        |-- Stereo3dFormat stereo3d_format
+            |-- short flag
+            |-- char display_mode
+            |-- char anaglyph_type
+            |-- char interlace_type
+            |-- char pad[3]
+        |-- ColorManagedViewSettings view_settings
+            |-- int flag
+            |-- int pad
+            |-- char look[64]
+            |-- char view_transform[64]
+            |-- float exposure
+            |-- float gamma
+            |-- CurveMapping *curve_mapping
+            |-- void *pad2
+        |-- ColorManagedDisplaySettings display_settings
+            |-- char display_device[64]
+    |-- AviCodecData *avicodecdata
+    |-- QuicktimeCodecData *qtcodecdata
+    |-- QuicktimeCodecSettings qtcodecsettings
+        |-- int codecType
+        |-- int codecSpatialQuality
+        |-- int codec
+        |-- int codecFlags
+        |-- int colorDepth
+        |-- int codecTemporalQuality
+        |-- int minSpatialQuality
+        |-- int minTemporalQuality
+        |-- int keyFrameRate
+        |-- int bitRate
+        |-- int audiocodecType
+        |-- int audioSampleRate
+        |-- short audioBitDepth
+        |-- short audioChannels
+        |-- int audioCodecFlags
+        |-- int audioBitRate
+        |-- int pad1
+    |-- FFMpegCodecData ffcodecdata
+        |-- int type
+        |-- int codec
+        |-- int audio_codec
+        |-- int video_bitrate
+        |-- int audio_bitrate
+        |-- int audio_mixrate
+        |-- int audio_channels
+        |-- int audio_pad
+        |-- float audio_volume
+        |-- int gop_size
+        |-- int flags
+        |-- int rc_min_rate
+        |-- int rc_max_rate
+        |-- int rc_buffer_size
+        |-- int mux_packet_size
+        |-- int mux_rate
+        |-- IDProperty *properties
+    |-- int cfra
+    |-- int sfra
+    |-- int efra
+    |-- float subframe
+    |-- int psfra
+    |-- int pefra
+    |-- int images
+    |-- int framapto
+    |-- short flag
+    |-- short threads
+    |-- float framelen
+    |-- float blurfac
+    |-- float edgeR
+    |-- float edgeG
+    |-- float edgeB
+    |-- short fullscreen
+    |-- short xplay
+    |-- short yplay
+    |-- short freqplay
+    |-- short depth
+    |-- short attrib
+    |-- int frame_step
+    |-- short stereomode
+    |-- short dimensionspreset
+    |-- short filtertype
+    |-- short size
+    |-- short maximsize
+    |-- short pad6
+    |-- int xsch
+    |-- int ysch
+    |-- short xparts
+    |-- short yparts
+    |-- int tilex
+    |-- int tiley
+    |-- short planes
+    |-- short imtype
+    |-- short subimtype
+    |-- short quality
+    |-- short displaymode
+    |-- char use_lock_interface
+    |-- char pad7
+    |-- int scemode
+    |-- int mode
+    |-- int raytrace_options
+    |-- short raytrace_structure
+    |-- short pad1
+    |-- short ocres
+    |-- short pad4
+    |-- short alphamode
+    |-- short osa
+    |-- short frs_sec
+    |-- short edgeint
+    |-- rctf safety
+        |-- float xmin
+        |-- float xmax
+        |-- float ymin
+        |-- float ymax
+    |-- rctf border
+        |-- float xmin
+        |-- float xmax
+        |-- float ymin
+        |-- float ymax
+    |-- rcti disprect
+        |-- int xmin
+        |-- int xmax
+        |-- int ymin
+        |-- int ymax
+    |-- ListBase layers
+        |-- void *first
+        |-- void *last
+    |-- short actlay
+    |-- short mblur_samples
+    |-- float xasp
+    |-- float yasp
+    |-- float frs_sec_base
+    |-- float gauss
+    |-- int color_mgt_flag
+    |-- float postgamma
+    |-- float posthue
+    |-- float postsat
+    |-- float dither_intensity
+    |-- short bake_osa
+    |-- short bake_filter
+    |-- short bake_mode
+    |-- short bake_flag
+    |-- short bake_normal_space
+    |-- short bake_quad_split
+    |-- float bake_maxdist
+    |-- float bake_biasdist
+    |-- short bake_samples
+    |-- short bake_pad
+    |-- float bake_user_scale
+    |-- float bake_pad1
+    |-- char pic[1024]
+    |-- int stamp
+    |-- short stamp_font_id
+    |-- short pad3
+    |-- char stamp_udata[768]
+    |-- float fg_stamp[4]
+    |-- float bg_stamp[4]
+    |-- char seq_prev_type
+    |-- char seq_rend_type
+    |-- char seq_flag
+    |-- char pad5[5]
+    |-- int simplify_flag
+    |-- short simplify_subsurf
+    |-- short simplify_subsurf_render
+    |-- short simplify_shadowsamples
+    |-- short pad9
+    |-- float simplify_particles
+    |-- float simplify_particles_render
+    |-- float simplify_aosss
+    |-- short cineonwhite
+    |-- short cineonblack
+    |-- float cineongamma
+    |-- short jp2_preset
+    |-- short jp2_depth
+    |-- int rpad3
+    |-- short domeres
+    |-- short domemode
+    |-- short domeangle
+    |-- short dometilt
+    |-- float domeresbuf
+    |-- float pad2
+    |-- Text *dometext
+    |-- int line_thickness_mode
+    |-- float unit_line_thickness
+    |-- char engine[32]
+    |-- BakeData bake
+        |-- ImageFormatData im_format
+            |-- char imtype
+            |-- char depth
+            |-- char planes
+            |-- char flag
+            |-- char quality
+            |-- char compress
+            |-- char exr_codec
+            |-- char cineon_flag
+            |-- short cineon_white
+            |-- short cineon_black
+            |-- float cineon_gamma
+            |-- char jp2_flag
+            |-- char jp2_codec
+            |-- char tiff_codec
+            |-- char pad[4]
+            |-- char views_format
+            |-- Stereo3dFormat stereo3d_format
+                |-- short flag
+                |-- char display_mode
+                |-- char anaglyph_type
+                |-- char interlace_type
+                |-- char pad[3]
+            |-- ColorManagedViewSettings view_settings
+                |-- int flag
+                |-- int pad
+                |-- char look[64]
+                |-- char view_transform[64]
+                |-- float exposure
+                |-- float gamma
+                |-- CurveMapping *curve_mapping
+                |-- void *pad2
+            |-- ColorManagedDisplaySettings display_settings
+                |-- char display_device[64]
+        |-- char filepath[1024]
+        |-- short width
+        |-- short height
+        |-- short margin
+        |-- short flag
+        |-- float cage_extrusion
+        |-- int pass_filter
+        |-- char normal_swizzle[3]
+        |-- char normal_space
+        |-- char save_mode
+        |-- char pad[3]
+        |-- char cage[64]
+    |-- int preview_start_resolution
+    |-- short debug_pass_type
+    |-- short pad
+    |-- ListBase views
+        |-- void *first
+        |-- void *last
+    |-- short actview
+    |-- short views_format
+    |-- short pad8[2]
+    |-- CurveMapping mblur_shutter_curve
+        |-- int flag
+        |-- int cur
+        |-- int preset
+        |-- int changed_timestamp
+        |-- rctf curr
+            |-- float xmin
+            |-- float xmax
+            |-- float ymin
+            |-- float ymax
+        |-- rctf clipr
+            |-- float xmin
+            |-- float xmax
+            |-- float ymin
+            |-- float ymax
+        |-- CurveMap cm[4]
+            |-- short totpoint
+            |-- short flag
+            |-- float range
+            |-- float mintable
+            |-- float maxtable
+            |-- float ext_in[2]
+            |-- float ext_out[2]
+            |-- CurveMapPoint *curve
+            |-- CurveMapPoint *table
+            |-- CurveMapPoint *premultable
+            |-- float premul_ext_in[2]
+            |-- float premul_ext_out[2]
+        |-- float black[3]
+        |-- float white[3]
+        |-- float bwmul[3]
+        |-- float sample[3]
+|-- AudioData audio
+    |-- int mixrate
+    |-- float main
+    |-- float speed_of_sound
+    |-- float doppler_factor
+    |-- int distance_model
+    |-- short flag
+    |-- short pad
+    |-- float volume
+    |-- float pad2
+|-- ListBase markers
+    |-- void *first
+    |-- void *last
+|-- ListBase transform_spaces
+    |-- void *first
+    |-- void *last
+|-- void *sound_scene
+|-- void *playback_handle
+|-- void *sound_scrub_handle
+|-- void *speaker_handles
+|-- void *fps_info
+|-- Depsgraph *depsgraph
+|-- void *pad1
+|-- DagForest *theDag
+|-- short dagflags
+|-- short pad3
+|-- int active_keyingset
+|-- ListBase keyingsets
+    |-- void *first
+    |-- void *last
+|-- GameFraming framing
+    |-- float col[3]
+    |-- char type
+    |-- char pad1
+    |-- char pad2
+    |-- char pad3
+|-- GameData gm
+    |-- GameFraming framing
+        |-- float col[3]
+        |-- char type
+        |-- char pad1
+        |-- char pad2
+        |-- char pad3
+    |-- short playerflag
+    |-- short xplay
+    |-- short yplay
+    |-- short freqplay
+    |-- short depth
+    |-- short attrib
+    |-- short rt1
+    |-- short rt2
+    |-- short aasamples
+    |-- short pad4[3]
+    |-- GameDome dome
+        |-- short res
+        |-- short mode
+        |-- short angle
+        |-- short tilt
+        |-- float resbuf
+        |-- float pad2
+        |-- Text *warptext
+    |-- short stereoflag
+    |-- short stereomode
+    |-- float eyeseparation
+    |-- RecastData recastData
+        |-- float cellsize
+        |-- float cellheight
+        |-- float agentmaxslope
+        |-- float agentmaxclimb
+        |-- float agentheight
+        |-- float agentradius
+        |-- float edgemaxlen
+        |-- float edgemaxerror
+        |-- float regionminsize
+        |-- float regionmergesize
+        |-- int vertsperpoly
+        |-- float detailsampledist
+        |-- float detailsamplemaxerror
+        |-- short pad1
+        |-- short pad2
+    |-- float gravity
+    |-- float activityBoxRadius
+    |-- int flag
+    |-- short mode
+    |-- short matmode
+    |-- short occlusionRes
+    |-- short physicsEngine
+    |-- short exitkey
+    |-- short vsync
+    |-- short ticrate
+    |-- short maxlogicstep
+    |-- short physubstep
+    |-- short maxphystep
+    |-- short obstacleSimulation
+    |-- short raster_storage
+    |-- float levelHeight
+    |-- float deactivationtime
+    |-- float lineardeactthreshold
+    |-- float angulardeactthreshold
+    |-- short lodflag
+    |-- short pad2
+    |-- int scehysteresis
+    |-- int pad5
+|-- UnitSettings unit
+    |-- float scale_length
+    |-- char system
+    |-- char system_rotation
+    |-- short flag
+|-- bGPdata *gpd
+|-- PhysicsSettings physics_settings
+    |-- float gravity[3]
+    |-- int flag
+    |-- int quick_cache_step
+    |-- int rt
+|-- MovieClip *clip
+|-- uint64_t customdata_mask
+|-- uint64_t customdata_mask_modal
+|-- ColorManagedViewSettings view_settings
+    |-- int flag
+    |-- int pad
+    |-- char look[64]
+    |-- char view_transform[64]
+    |-- float exposure
+    |-- float gamma
+    |-- CurveMapping *curve_mapping
+    |-- void *pad2
+|-- ColorManagedDisplaySettings display_settings
+    |-- char display_device[64]
+|-- ColorManagedColorspaceSettings sequencer_colorspace_settings
+    |-- char name[64]
+|-- RigidBodyWorld *rigidbody_world
+|-- PreviewImage *preview
