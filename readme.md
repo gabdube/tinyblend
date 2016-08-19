@@ -44,7 +44,7 @@ SOFTWARE.
 ### How it works
 
 Tinyblend was created to be fast and very easy on memory. To achieve this, tinyblend is very lazy. When a Blender file is imported,
-on the file schema is loaded in memory. This allows to load huge files quickly and without problems. Using this method the large amount
+only the file schema is loaded in memory. This allows to load huge files quickly and without problems. Using this method the large amount
 of "garbage" data in a blend file can be ignored.
 
 When accessing an object type for the first time, tinyblend look at the file shema for the object structure and then dynamically compiles
@@ -52,9 +52,9 @@ the structure into a python type (class). This allows tinyblend to potentially l
 
 Compiled types are cached by blender version. So it's possible to load data from two different versions without problems.
 
-Using the compiled object, all its attribute can be accessed as if it was a "normal" python object. `scene.id.name` for example.
+The data of the extracted object can be accessed as if it was a "normal" python object. `scene.id.name` for example.
 
-The compiled object life is not infinite, as soon as there is no active object of a certain type, the python GC will free the type.
+The compiled object lifetime is not infinite, as soon as there is no active object of a his type, the python GC will free the type.
 
 Finally, when an object is loaded, only its immediate fields are parsed. Non immediate field (fields with a pointer type), are only loaded
 when accessed for the first time (the value loaded is then cached). This extra action is completely invisible to the user.
@@ -67,12 +67,13 @@ You will be happy to learn that the tinyblend apui is indeed tiny.
 
 Loading a Blender file is done through the `BlenderFile` type. The fist argument of the constuctor is the blend file path.  
 Use the `close` method when done with the file to close the underlying file handle. Note that after the file is closed, it will be
-impossible to load other object.
+impossible to load other objects.
 
 ```python
 from tinyblend import BlenderFile
 
 blend = BlenderFile('rabid_squirrel.blend')
+print(blend.header) # BlendFileInfo(version=VersionInfo(major=2, minor=7, rev=7), arch=<Arch.X64: 'Q'>, endian=<Endian.Little: '<'>)
 # Do stuff
 blend.close()
 
@@ -139,9 +140,6 @@ scene2 = scenes.find_by_name('the_forest')
 print(scene1 is scene2) # False
 print(scene1 == scene2) # True
 ```
-
-### API
-
 
 ### Pretty picture
 
