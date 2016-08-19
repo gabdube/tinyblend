@@ -11,5 +11,6 @@ setup(name='tinyblend',
       license='MIT',
       url='https://github.com/gabdube/tinyblend',
       download_url='https://github.com/gabdube/tinyblend',
+      keywords = ['game', '3d', 'blender', 'import'],
       py_modules=['tinyblend'],
      )
