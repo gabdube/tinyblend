@@ -808,5 +808,13 @@ class BlenderFile(object):
 
         return repr
 
+    def list_structures(self):
+        names = []
+        types = self.index.type_names
+        for s in self.index.structures:
+            names.append(types[s.index])
+
+        return sorted(names)
+
     def close(self):
         self.handle.close()

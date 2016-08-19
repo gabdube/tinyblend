@@ -58,7 +58,6 @@ class Game(Window):
         
         # Most assets are located in the blend file
         self.assets = blend.BlenderFile('_assets.blend')
-        print(self.assets.tree('Scene'))
 
         # Load shaders
         shader = shaders.from_files_names('shaders/main.glsl.vert', 'shaders/main.glsl.frag')

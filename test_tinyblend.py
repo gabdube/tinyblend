@@ -79,6 +79,14 @@ def test_should_lookup_pointer():
     assert scene.world is scene_world
     assert scene.id.next is None         # Null pointer lookup returns None
 
+def test_should_lookup_pointer_array():
+    blend = BlenderFile('fixtures/test1.blend')
+
+    obj = blend.find('Object').find_by_name('Suzanne')
+    data = obj.data
+
+    assert data.totvert == len(data.mvert)
+
 def test_blend_struct_lookup():
     blend = BlenderFile('fixtures/test1.blend')
 
@@ -127,6 +135,18 @@ def test_cache_lookup():
     assert BlenderObject.CACHE[v]['World']() is not None
 
     blend.close()
+
+def test_list_structures():
+    blend = BlenderFile('fixtures/test1.blend')
+    structs = blend.list_structures()
+    assert len(structs) > 30
+    assert 'Scene' in structs
+
+def test_tree():
+    blend = BlenderFile('fixtures/test1.blend')
+    scene_repr = blend.tree('Scene')
+    assert len(scene_repr.splitlines()) > 100
+    assert 'ID' in scene_repr
 
 def test_open_bad_blend_file():
     pytest.raises(BlenderFileImportException, BlenderFile, 'fixtures/test2.blend')

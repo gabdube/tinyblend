@@ -4,11 +4,13 @@ Tinyblend is a very small and lazy library that reads [Blender](https://www.blen
 Tinyblend was tested on Linux and Windows and on Blender 2.77, but it should work on any OS and any blender version.  
 Tinyblend **does not** support writing blender files.  
 
+Running the test suite requires [pytest](http://doc.pytest.org/en/latest/)
+
 See the `/demo` folder for an example. (Requires [pyglet](https://bitbucket.org/pyglet/pyglet/wiki/Home))
 
 ### Requirements
 
-* Python (tested with 3.5; should work with any versions)
+* Python (tested with 3.5; should work with 2.7 and pypy too)
 
 ### Installation
 
@@ -43,7 +45,7 @@ SOFTWARE.
 
 Tinyblend was created to be fast and very easy on memory. To achieve this, tinyblend is very lazy. When a Blender file is imported,
 on the file schema is loaded in memory. This allows to load huge files quickly and without problems. Using this method the large amount
-of "garbage" data in a blend file is ignored.
+of "garbage" data in a blend file can be ignored.
 
 When accessing an object type for the first time, tinyblend look at the file shema for the object structure and then dynamically compiles
 the structure into a python type (class). This allows tinyblend to potentially load blender file from any versions. The object is then cached for speed.
@@ -78,7 +80,7 @@ blend.close()
 
 #### Printing a type representation
 
-To list the structure names available in a blend file, use the method `list_strucutures`.
+To list the structure names available in a blend file, use the method `list_structures`.
 
 Blender is huge and probably has hundreds of different (undocumented) structures. You probably don't want to check the source
 in order to see what fields a structure has. Hopefully, the tinyblend library has a method named `tree` that returns a representation
@@ -139,3 +141,8 @@ print(scene1 == scene2) # True
 ```
 
 ### API
+
+
+### Pretty picture
+
+![Alt text](/demo/img.PNG "Image")  
