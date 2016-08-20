@@ -45,7 +45,7 @@ from pyglet import app
 import tinyblend as blend
 import pyshaders as shaders
 from pyglbuffers import Buffer
-from matmath import Mat4, translate, perspective, rotate
+from matmath import translate, perspective, rotate
 
 # Load the bindings in order to operate more easily with pyglbuffers
 shaders.load_extension('pyglbuffers_bindings')
@@ -66,13 +66,8 @@ class Game(Window):
         self.shader = shader
 
         # Uniforms matrices setup
-        self.view = Mat4()
-        self.model = Mat4()
-        self.proj = Mat4()
-
         self.rotation = [-90,0,0]
         self.position = [0,0,-4.5]
-        
         self.upload_uniforms()
 
         # Scene creation
@@ -109,19 +104,17 @@ class Game(Window):
         glClearColor(0.1, 0.1, 0.1, 1.0)
 
     def upload_uniforms(self):
-        self.view.set_data(translate(None, tuple(self.position) ))
-
         width, height = self.get_size()
-        self.proj.set_data(perspective(60.0, width/height, 0.1, 256.0))
+
+        uni = self.shader.uniforms
+        
+        uni.view = translate(None, tuple(self.position) )
 
         mod_mat = rotate(None, self.rotation[0], (1.0, 0.0, 0.0))
         mod_mat = rotate(mod_mat, self.rotation[1], (0.0, 1.0, 0.0))
-        self.model.set_data(rotate(mod_mat, self.rotation[2], (0.0, 0.0, 1.0)))
+        uni.model = rotate(mod_mat, self.rotation[2], (0.0, 0.0, 1.0)) 
 
-        uni = self.shader.uniforms
-        uni.view = self.view.data()
-        uni.model = self.model.data()
-        uni.proj = self.proj.data()
+        uni.proj = perspective(60.0, width/height, 0.1, 256.0)
 
     def on_resize(self, width, height):
         Window.on_resize(self, width, height)
