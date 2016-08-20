@@ -37,9 +37,8 @@ import sys, math
 from os.path import dirname as dn, abspath
 sys.path.append(dn(dn(abspath(__file__))))
 
-from pyglet.gl import GL_TRIANGLES, GL_LINES, GL_FLOAT, GL_STATIC_DRAW, GL_UNSIGNED_SHORT
+from pyglet.gl import GL_LINES, GL_FLOAT, GL_STATIC_DRAW, GL_UNSIGNED_SHORT
 from pyglet.gl import glDrawElements, glClearColor
-from pyglet.graphics import vertex_list
 from pyglet.window import Window, mouse
 from pyglet import app
 
@@ -73,7 +72,7 @@ class Game(Window):
 
         self.rotation = [-90,0,0]
         self.position = [0,0,-4.5]
-        self.proj.set_data(perspective(60.0, 800/600, 0.1, 256.0))
+        
         self.upload_uniforms()
 
         # Scene creation
@@ -112,6 +111,9 @@ class Game(Window):
     def upload_uniforms(self):
         self.view.set_data(translate(None, tuple(self.position) ))
 
+        width, height = self.get_size()
+        self.proj.set_data(perspective(60.0, width/height, 0.1, 256.0))
+
         mod_mat = rotate(None, self.rotation[0], (1.0, 0.0, 0.0))
         mod_mat = rotate(mod_mat, self.rotation[1], (0.0, 1.0, 0.0))
         self.model.set_data(rotate(mod_mat, self.rotation[2], (0.0, 0.0, 1.0)))
@@ -123,7 +125,6 @@ class Game(Window):
 
     def on_resize(self, width, height):
         Window.on_resize(self, width, height)
-        self.proj.set_data(perspective(60.0, width/height, 0.1, 256.0))
         self.upload_uniforms()
 
     def on_mouse_scroll(self, x, y, scroll_x, scroll_y):

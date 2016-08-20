@@ -4,3 +4,5 @@ assets
 launch.json
 scene_tree.txt
 *.blend~
+MANIFEST
+dist/
