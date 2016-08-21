@@ -10,7 +10,7 @@ See the `/demo` folder for an example. (Requires [pyglet](https://bitbucket.org/
 
 ### Requirements
 
-* Python (tested with 3.5; should work with 2.7 and pypy too)
+* Python 3.4 and up (tested with 3.5)
 
 ### Installation
 
