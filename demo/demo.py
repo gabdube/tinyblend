@@ -85,20 +85,20 @@ class Game(Window):
 
         # Get the vertices data of the suzanne object
         suz_data = bsuzanne.data
-        vertices = []
-        indices = []
+        vertices, indices = [], []
+        
         for v in suz_data.mvert:
             vertices.append(v.co)
 
         for edge in suz_data.medge:
-            indices.extend(((edge.v1,), (edge.v2,)))
+            indices.append((edge.v1, edge.v2))
 
         # Pack the vertices data of the suzanne object to be used by opengl
         suzanne = Buffer.array('(3f)[position]', GL_STATIC_DRAW)
-        suzanne_indices = Buffer.element('(1S)[elem]', GL_STATIC_DRAW)
+        suzanne_indices = Buffer.element('(2S)[elem]', GL_STATIC_DRAW)
         suzanne.init(vertices)
         suzanne_indices.init(indices)
-        self.suzanne = (suzanne, suzanne_indices, len(suzanne_indices))
+        self.suzanne = (suzanne, suzanne_indices, len(suzanne_indices)*2)
 
         # Set the background color
         glClearColor(0.1, 0.1, 0.1, 1.0)
