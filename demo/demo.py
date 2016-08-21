@@ -68,6 +68,7 @@ class Game(Window):
         # Uniforms matrices setup
         self.rotation = [-90,0,0]
         self.position = [0,0,-4.5]
+        shaders.transpose_matrices(False)
         self.upload_uniforms()
 
         # Scene creation
@@ -141,6 +142,7 @@ class Game(Window):
         # Draw the mesh
         suz, suz_indices, suz_len = self.suzanne
         suz.bind()
+        suz_indices.bind()
         self.shader.map_attributes(suz)
         glDrawElements(GL_LINES, suz_len, GL_UNSIGNED_SHORT, 0)
     
