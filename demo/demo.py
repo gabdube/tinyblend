@@ -38,8 +38,8 @@ from os.path import dirname as dn, abspath
 sys.path.append(dn(dn(abspath(__file__))))
 
 from pyglet.gl import GL_LINES, GL_FLOAT, GL_STATIC_DRAW, GL_UNSIGNED_SHORT
-from pyglet.gl import glDrawElements, glClearColor
-from pyglet.window import Window, mouse
+from pyglet.gl import glDrawElements, glClearColor, Config, glGenVertexArrays, glDeleteVertexArrays, glBindVertexArray, GLuint
+from pyglet.window import Window, mouse, get_platform   
 from pyglet import app
 
 import tinyblend as blend
@@ -53,10 +53,23 @@ shaders.load_extension('pyglbuffers_bindings')
 class Game(Window):
 
     def __init__(self):
-        Window.__init__(self, 800, 600, visible=False, resizable=True, caption='Tinyblend example')
+        display = get_platform().get_default_display()
+        screen = display.get_default_screen()
+
+        template = Config(alpha_size=8)
+        config = screen.get_best_config(template)
+        config.major_version = 3
+        config.minor_version = 3
+        context = config.create_context(None)
+        
+        Window.__init__(self, 800, 600, visible=False, resizable=True, caption='Tinyblend example', context=context)
         
         # Most assets are located in the blend file
         self.assets = blend.BlenderFile('_assets.blend')
+
+        self.vao = (GLuint*1)()
+        glGenVertexArrays(1, self.vao)
+        glBindVertexArray(self.vao[0])
 
         # Load shaders
         shader = shaders.from_files_names('shaders/main.glsl.vert', 'shaders/main.glsl.frag')
@@ -101,6 +114,8 @@ class Game(Window):
         suzanne_indices.init(indices)
         self.suzanne = (suzanne, suzanne_indices, len(suzanne_indices)*2)
 
+        self.shader.map_attributes(suzanne)
+
         # Set the background color
         glClearColor(0.1, 0.1, 0.1, 1.0)
 
@@ -118,7 +133,7 @@ class Game(Window):
         uni.proj = perspective(60.0, width/height, 0.1, 256.0)
 
     def on_resize(self, width, height):
-        Window.on_resize(self, width, height)
+        #Window.on_resize(self, width, height)
         self.upload_uniforms()
 
     def on_mouse_scroll(self, x, y, scroll_x, scroll_y):
@@ -143,7 +158,7 @@ class Game(Window):
         suz, suz_indices, suz_len = self.suzanne
         suz.bind()
         suz_indices.bind()
-        self.shader.map_attributes(suz)
+        
         glDrawElements(GL_LINES, suz_len, GL_UNSIGNED_SHORT, 0)
     
 def main():
