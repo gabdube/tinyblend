@@ -39,7 +39,7 @@ sys.path.append(dn(dn(abspath(__file__))))
 
 from pyglet.gl import GL_LINES, GL_FLOAT, GL_STATIC_DRAW, GL_UNSIGNED_SHORT
 from pyglet.gl import glDrawElements, glClearColor, Config, glGenVertexArrays, glDeleteVertexArrays, glBindVertexArray, GLuint, glViewport
-from pyglet.window import Window, mouse, get_platform   
+from pyglet.window import Window, mouse, get_platform , key 
 from pyglet import app
 
 import tinyblend as blend
@@ -149,6 +149,13 @@ class Game(Window):
             self.position[1] += dy * 0.005
 
         self.upload_uniforms()
+
+    def on_key_press(self, sym, mod):
+        if sym == key.ESCAPE:
+            del self.shader
+            del self.suzanne
+            glDeleteVertexArrays(1, self.vao)
+            self.close()
 
     def on_draw(self):
         # Clear the window
