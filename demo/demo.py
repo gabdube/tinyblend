@@ -54,10 +54,7 @@ class Game(Window):
 
     def __init__(self):
         display = get_platform().get_default_display()
-        screen = display.get_default_screen()
-
-        template = Config(alpha_size=8)
-        config = screen.get_best_config(template)
+        config = display.get_default_screen().get_best_config(Config())
         config.major_version = 3
         config.minor_version = 3
         context = config.create_context(None)
@@ -114,6 +111,9 @@ class Game(Window):
         suzanne_indices.init(indices)
         self.suzanne = (suzanne, suzanne_indices, len(suzanne_indices)*2)
 
+        # Map the attribute and bind the buffer
+        suzanne.bind()
+        suzanne_indices.bind()
         self.shader.map_attributes(suzanne)
 
         # Set the background color
@@ -162,11 +162,7 @@ class Game(Window):
         self.clear()
 
         # Draw the mesh
-        suz, suz_indices, suz_len = self.suzanne
-        suz.bind()
-        suz_indices.bind()
-        
-        glDrawElements(GL_LINES, suz_len, GL_UNSIGNED_SHORT, 0)
+        glDrawElements(GL_LINES, self.suzanne[2], GL_UNSIGNED_SHORT, 0)
     
 def main():
     game = Game()
