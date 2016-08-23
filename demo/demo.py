@@ -38,7 +38,7 @@ from os.path import dirname as dn, abspath
 sys.path.append(dn(dn(abspath(__file__))))
 
 from pyglet.gl import GL_LINES, GL_FLOAT, GL_STATIC_DRAW, GL_UNSIGNED_SHORT
-from pyglet.gl import glDrawElements, glClearColor, Config, glGenVertexArrays, glDeleteVertexArrays, glBindVertexArray, GLuint
+from pyglet.gl import glDrawElements, glClearColor, Config, glGenVertexArrays, glDeleteVertexArrays, glBindVertexArray, GLuint, glViewport
 from pyglet.window import Window, mouse, get_platform   
 from pyglet import app
 
@@ -133,7 +133,7 @@ class Game(Window):
         uni.proj = perspective(60.0, width/height, 0.1, 256.0)
 
     def on_resize(self, width, height):
-        #Window.on_resize(self, width, height)
+        glViewport(0,0, width, height)
         self.upload_uniforms()
 
     def on_mouse_scroll(self, x, y, scroll_x, scroll_y):
