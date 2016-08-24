@@ -93,7 +93,7 @@ The tree functions is also available on instanced blender object.
 from tinyblend import BlenderFile
 
 blend = BlenderFile('super_ragdoll.blend')
-structs = blend.list_strucutures()
+structs = blend.list_structures()
 print('Scene' in structs)  # True
 print(blend.tree('Scene'))
 # See demo/scene_struct.txt for the output (the scene struct has 461 fields)
