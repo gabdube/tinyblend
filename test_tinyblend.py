@@ -25,7 +25,7 @@ def test_open_blend_file():
 def test_should_read_scene_data():
     blend = BlenderFile('fixtures/test1.blend')
 
-    worlds = blend.find('World')
+    worlds = blend.list('World')
     assert worlds.file is blend, 'World file is not blend'
     assert len(worlds) == 1, 'Test blend should have one world'
 
@@ -37,12 +37,12 @@ def test_should_read_scene_data():
     assert world.aodist > 12.8999 and world.aodist < 12.90001
     assert world.id.name[0:11] == b'WOTestWorld'    
 
-    scenes = blend.find('Scene')
+    scenes = blend.list('Scene')
     assert len(scenes) == 1, 'Test blend should have one scene'
 
-    rctfs = blend.find('rctf')
+    rctfs = blend.list('rctf')
     pytest.raises(BlenderFileReadException, rctfs.find_by_name, 'blah')  # rctf object do not have a name
-    pytest.raises(BlenderFileReadException, blend.find, 'foos')          # foos is not a valid structure
+    pytest.raises(BlenderFileReadException, blend.list, 'foos')          # foos is not a valid structure
     pytest.raises(KeyError, worlds.find_by_name, 'BOO')                  # There are no worlds by the name of BOO in the blend file
 
     blend.close()
@@ -51,7 +51,7 @@ def test_should_read_scene_data():
 def test_equality():
     blend = BlenderFile('fixtures/test1.blend')
 
-    worlds = blend.find('World')
+    worlds = blend.list('World')
 
     world1 = worlds.find_by_name('TestWorld')
     world2 = worlds.find_by_name('TestWorld')
@@ -62,8 +62,8 @@ def test_equality():
 def test_should_lookup_pointer():
     blend = BlenderFile('fixtures/test1.blend')
 
-    worlds = blend.find('World')
-    scenes = blend.find('Scene')
+    worlds = blend.list('World')
+    scenes = blend.list('Scene')
 
     world = worlds.find_by_name('TestWorld')
     scene = scenes.find_by_name('MyTestScene')
@@ -82,7 +82,7 @@ def test_should_lookup_pointer():
 def test_should_lookup_pointer_array():
     blend = BlenderFile('fixtures/test1.blend')
 
-    obj = blend.find('Object').find_by_name('Suzanne')
+    obj = blend.list('Object').find_by_name('Suzanne')
     data = obj.data
 
     assert data.totvert == len(data.mvert)
@@ -104,7 +104,7 @@ def test_blend_struct_lookup():
 
 def test_weakref():
     blend = BlenderFile('fixtures/test1.blend')
-    worlds = blend.find('World')
+    worlds = blend.list('World')
     
     del blend
 
@@ -118,7 +118,7 @@ def test_cache_lookup():
     blend = BlenderFile('fixtures/test1.blend')
     v = blend.header.version
 
-    worlds = blend.find('World')
+    worlds = blend.list('World')
 
     assert BlenderObjectFactory.CACHE[v]['World']() is not None
     assert BlenderObject.CACHE[v]['World']() is not None
@@ -129,7 +129,7 @@ def test_cache_lookup():
     assert BlenderObjectFactory.CACHE[v]['World']() is None
     assert BlenderObject.CACHE[v]['World']() is None
 
-    worlds = blend.find('World')
+    worlds = blend.list('World')
     assert isinstance(worlds, BlenderObjectFactory)
     assert BlenderObjectFactory.CACHE[v]['World']() is not None
     assert BlenderObject.CACHE[v]['World']() is not None

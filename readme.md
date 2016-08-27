@@ -103,8 +103,8 @@ print(blend.tree('Scene'))
 
 Reading blend file is done in two steps (3 if you count loading the blend file).  
 
-A blender file has a `find` method that returns a `BlenderObjectFactory`. The factory is really just an interface
-to easily reads data of the same type from a blender file.
+A blender file has a `list` method that returns a `BlenderObjectFactory`. The factory is really just an interface
+to easily read data of the same type from a blender file.
 
 Then, from the factory, the method `find_by_name` can be used to ... you guessed right! Find an object by name.  
 Its also possible to iter over a factory to return all its object (if the object do not have a name for example).
@@ -113,7 +113,7 @@ Its also possible to iter over a factory to return all its object (if the object
 from tinyblend import BlenderFile
 
 blend = BlenderFile('power_weasel.blend')
-scenes = BlenderFile.find('Scene')
+scenes = BlenderFile.list('Scene')
 print(len(scenes))  # 2
 
 my_scene = scenes.find_by_name('the_forest')

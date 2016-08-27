@@ -61,9 +61,6 @@ class Game(Window):
         
         Window.__init__(self, 800, 600, visible=False, resizable=True, caption='Tinyblend example', context=context)
         
-        # Most assets are located in the blend file
-        self.assets = blend.BlenderFile('_assets.blend')
-
         self.vao = (GLuint*1)()
         glGenVertexArrays(1, self.vao)
         glBindVertexArray(self.vao[0])
@@ -91,8 +88,8 @@ class Game(Window):
         " Load the assets in the scene "
 
         # Get the suzanne object from the blend file
-        objects = self.assets.find('Object')
-        bsuzanne = objects.find_by_name('Suzanne')
+        assets = blend.BlenderFile('_assets.blend')
+        bsuzanne = assets.list('Object').find_by_name('Suzanne')
 
         # Get the vertices data of the suzanne object
         suz_data = bsuzanne.data
@@ -118,6 +115,9 @@ class Game(Window):
 
         # Set the background color
         glClearColor(0.1, 0.1, 0.1, 1.0)
+
+        # Close the assets file
+        assets.close()
 
     def upload_uniforms(self):
         width, height = self.get_size()
