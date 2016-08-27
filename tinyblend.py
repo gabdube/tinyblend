@@ -8,7 +8,7 @@ Usage:
 from tinyblend import BlendFile
 
 blend_file = BlendFile('myblend.blend')
-scenes = blend_file.find('Scene')
+scenes = blend_file.list('Scene')
 
 for scene in scenes:
     print(scene.id.name)
@@ -751,7 +751,7 @@ class BlenderFile(object):
         if BlenderObjectFactory.CACHE.get(header.version) is None:
             BlenderObjectFactory.CACHE[header.version] = {}
 
-    def find(self, factory_name):
+    def list(self, factory_name):
         """
             Creates or get a cached version of a blender type factory. A BlenderObjectFactory
             offers a pythonic interface to read blend file data of a certain type. For more information see BlenderObjectFactory
