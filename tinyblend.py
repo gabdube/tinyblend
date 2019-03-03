@@ -737,8 +737,12 @@ class BlenderFile(object):
     def _from_addresses(self, ptr_list):
         return [self._from_address(ptr) if ptr != 0 else None for ptr in ptr_list]
 
+    @staticmethod
+    def _get_file_handler(path):
+        return open(path, 'rb')
+
     def __init__(self, blend_file_name):
-        handle = open(blend_file_name, 'rb')
+        handle = self._get_file_handler(blend_file_name)
 
         header = BlenderFile._parse_header(handle.read(12))
         if header is None:
