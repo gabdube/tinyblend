@@ -37,10 +37,15 @@ import sys, math
 from os.path import dirname as dn, abspath
 sys.path.append(dn(dn(abspath(__file__))))
 
-from pyglet.gl import GL_LINES, GL_FLOAT, GL_STATIC_DRAW, GL_UNSIGNED_SHORT
-from pyglet.gl import glDrawElements, glClearColor, Config, glGenVertexArrays, glDeleteVertexArrays, glBindVertexArray, GLuint, glViewport
-from pyglet.window import Window, mouse, get_platform , key 
-from pyglet import app
+try:
+    import pyglet
+    from pyglet.gl import GL_LINES, GL_FLOAT, GL_STATIC_DRAW, GL_UNSIGNED_SHORT
+    from pyglet.gl import glDrawElements, glClearColor, Config, glGenVertexArrays, glDeleteVertexArrays, glBindVertexArray, GLuint, glViewport
+    from pyglet.window import Window, mouse, key 
+    from pyglet import app
+except (ImportError, ModuleNotFoundError) as _e:
+    print("This demo require the lastest version of Pyglet to run. Use `pip install pyglet` to fix this problem")
+    exit()
 
 import tinyblend as blend
 import pyshaders as shaders
@@ -53,7 +58,7 @@ shaders.load_extension('pyglbuffers_bindings')
 class Game(Window):
 
     def __init__(self):
-        display = get_platform().get_default_display()
+        display = pyglet.canvas.get_display()
         config = display.get_default_screen().get_best_config(Config())
         config.major_version = 3
         config.minor_version = 3
@@ -127,7 +132,7 @@ class Game(Window):
         uni.view = translate(None, tuple(self.position) )
 
         mod_mat = rotate(None, self.rotation[0], (1.0, 0.0, 0.0))
-        mod_mat = rotate(mod_mat, self.rotation[1], (0.0, 1.0, 0.0))
+        mod_mat = rotate(mod_mat, self.rotation[1], (0.0, 0.0, 1.0))
         uni.model = rotate(mod_mat, self.rotation[2], (0.0, 0.0, 1.0)) 
 
         uni.proj = perspective(60.0, width/height, 0.1, 256.0)
