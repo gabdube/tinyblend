@@ -4,7 +4,7 @@ from distutils.core import setup
 from sys import argv
 
 setup(name='tinyblend',
-      version='1.0.1',
+      version='1.0.2',
       description='A tiny blender file loader',
       author='Gabriel Dubé',
       author_email='gdube.475@gmail.com',
