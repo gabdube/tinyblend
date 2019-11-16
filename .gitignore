@@ -7,3 +7,4 @@ scene_tree.txt
 MANIFEST
 dist/
 Build/
+tinyblend.egg-info/

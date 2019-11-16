@@ -1,9 +1,8 @@
 #!/usr/bin/env python
-
-from distutils.core import setup
+import setuptools
 from sys import argv
 
-setup(name='tinyblend',
+setuptools.setup(name='tinyblend',
       version='1.0.2',
       description='A tiny blender file loader',
       author='Gabriel Dubé',
