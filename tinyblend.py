@@ -276,14 +276,22 @@ class BlenderObjectFactory(object):
         fmt = ''
         fmt_names = []
 
+        # names cannot start with an underscore
+        def fix_name(n):
+            if n.startswith("_"):
+                return "f"+n
+            else:
+                return n
+
         for f in fields:
             t, count = f.type, str(f.count)
+        
             if f.count > 1 and t != 'char':
                 # A unique name must be generated for every item in an array that is not composed of chars
                 # This is translated to a python list when the blender types is instanciated
-                name = (f.name+('_{}_{}'.format(i, count)) for i in range(f.count))
+                name = (fix_name(f.name+('_{}_{}'.format(i, count))) for i in range(f.count))
             else:
-                name = (f.name,)
+                name = (fix_name(f.name),)
 
             # If type is a pointer
             if f.ptr:
@@ -353,7 +361,7 @@ class BlenderObjectFactory(object):
         
         # 3. Compile a format string from the extracted fields and build a namedstruct to extract the raw data. See the BlenderObject constructor.
         fmt, fmt_names = BlenderObjectFactory.compile_fmt(fields)
-        fmt_names = namedtuple(name, fmt_names)
+        fmt_names = namedtuple(name, fmt_names, rename=True)
         fmt = (endian.value)+fmt.replace('P', arch.value)
         fmt = NamedStruct.from_namedtuple(fmt_names, fmt)
         

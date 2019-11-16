@@ -22,6 +22,16 @@ def test_open_blend_file():
 
     blend.close()
 
+def test_open_blend_file_28():
+    blend = BlenderFile('fixtures/test_blender28.blend')
+
+    head = blend.header
+    assert 'VersionInfo(major=2, minor=8, rev=0)', repr(head.version)
+    assert BlenderFile.Arch.X64, head.arch
+    assert BlenderFile.Endian.Little, head.endian
+
+    blend.close()
+
 def test_should_read_scene_data():
     blend = BlenderFile('fixtures/test1.blend')
 
@@ -47,6 +57,18 @@ def test_should_read_scene_data():
 
     blend.close()
 
+def test_should_read_scene_data_28():
+    blend = BlenderFile('fixtures/test_blender28.blend')
+
+    worlds = blend.list('World')
+    assert worlds.file is blend, 'World file is not blend'
+    assert len(worlds) == 1, 'Test blend should have one world'
+
+    scenes = blend.list('Scene')
+    assert len(scenes) == 1, 'Test blend should have one scene'
+    
+    blend.close()
+
 
 def test_equality():
     blend = BlenderFile('fixtures/test1.blend')
@@ -60,6 +82,9 @@ def test_equality():
     assert world1 == world2
 
 def test_should_lookup_pointer():
+    BlenderObject.CACHE = {}
+    BlenderObjectFactory.CACHE = {}
+
     blend = BlenderFile('fixtures/test1.blend')
 
     worlds = blend.list('World')
@@ -73,6 +98,7 @@ def test_should_lookup_pointer():
     pytest.raises(AttributeError, delattr, scene, 'world')
 
     scene_world = scene.world
+
     assert type(scene_world) is worlds.object
     assert scene_world is not world
     assert scene.world == world
