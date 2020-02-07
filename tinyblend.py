@@ -52,7 +52,7 @@ from weakref import ref
 import re
 
 # List of base types found in blend fields and their struct char representation.
-_BASE_TYPES = {'float':'f', 'double':'d', 'int':'i', 'short':'h', 'char':'c', 'uint64_t':'Q'}
+_BASE_TYPES = {'float':'f', 'double':'d', 'int':'i', 'short':'h', 'ushort': "H", 'char':'c', 'char': 'B', 'long': 'l', 'ulong': 'L', 'uint64_t':'Q', 'int64_t':'q'}
 
 class BlenderFileException(Exception):
     """
@@ -111,7 +111,6 @@ class NamedStruct(object):
         if (x > y) and (x % y == 0):
             return tuple(self.iter_unpack(data))
 
-        values = self.format.unpack(data)
         return self.names(*self.format.unpack(data))
 
     def unpack_from(self, data, offset):
